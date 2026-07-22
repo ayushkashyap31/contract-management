@@ -12,6 +12,7 @@ class Contract(Document):
         self.normalize_fields()
         self.validate_required_fields()
         self.validate_dates()
+        self.validate_unique_collaborators()
 
     def normalize_fields(self):
         """Normalize user input."""
@@ -36,3 +37,21 @@ class Contract(Document):
             frappe.throw(
                 _("Effective Date cannot be later than Expiration Date.")
             )
+
+    def validate_unique_collaborators(self):
+        """Ensure the same user is not added multiple times."""
+
+        seen_users = set()
+
+        for collaborator in self.collaborators:
+            if not collaborator.user:
+                continue
+
+            if collaborator.user in seen_users:
+                frappe.throw(
+                    _(
+                        "User '{0}' cannot be added more than once as a collaborator."
+                    ).format(collaborator.user)
+                )
+
+            seen_users.add(collaborator.user)
