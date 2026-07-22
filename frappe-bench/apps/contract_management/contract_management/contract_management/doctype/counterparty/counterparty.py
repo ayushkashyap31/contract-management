@@ -6,7 +6,7 @@ from frappe import _
 
 import frappe
 
-
+# base class for Counterparty doctype
 class Counterparty(Document):
     def validate(self):
         """Run before every save."""

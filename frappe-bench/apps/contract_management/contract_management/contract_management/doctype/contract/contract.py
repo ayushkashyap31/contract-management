@@ -1,0 +1,38 @@
+# Copyright (c) 2026, Ayush Kumar Kashyap and contributors
+# For license information, please see license.txt
+
+import frappe
+from frappe import _
+from frappe.model.document import Document
+
+
+class Contract(Document):
+    def validate(self):
+        """Run before every save."""
+        self.normalize_fields()
+        self.validate_required_fields()
+        self.validate_dates()
+
+    def normalize_fields(self):
+        """Normalize user input."""
+
+        if self.contract_title:
+            self.contract_title = self.contract_title.strip()
+
+    def validate_required_fields(self):
+        """Ensure mandatory text fields are not empty after trimming."""
+
+        if not self.contract_title:
+            frappe.throw(_("Contract Title cannot be empty."))
+
+    def validate_dates(self):
+        """Validate contract dates."""
+
+        if (
+            self.effective_date
+            and self.expiration_date
+            and self.effective_date > self.expiration_date
+        ):
+            frappe.throw(
+                _("Effective Date cannot be later than Expiration Date.")
+            )

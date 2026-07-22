@@ -1,0 +1,11 @@
+{
+ "db_name": "_d306e84d2e2374e3",
+ "db_password": "kqZcSlJNVNQK78Ex",
+ "db_type": "mariadb",
+ "db_user": "_d306e84d2e2374e3",
+ "installed_apps": [
+  "frappe",
+  "contract_management",
+  "docusign_integration"
+ ]
+}
