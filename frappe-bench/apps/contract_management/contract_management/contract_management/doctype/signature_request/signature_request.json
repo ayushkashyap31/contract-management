@@ -1,0 +1,115 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "autoname": "SIG-.YYYY.-.#####",
+ "creation": "2026-07-22 15:41:08.857760",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "contract_version",
+  "requested_by",
+  "status",
+  "requested_on",
+  "column_break_zmev",
+  "completed_on",
+  "envelope_id",
+  "signing_url",
+  "recipients_section",
+  "signature_recipients"
+ ],
+ "fields": [
+  {
+   "fieldname": "contract_version",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Contract Version",
+   "options": "Contract Version",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "requested_by",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Requested By",
+   "options": "User",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Draft\nPending\nSent\nViewed\nCompleted\nDeclined\nCancelled\nExpired",
+   "reqd": 1
+  },
+  {
+   "fieldname": "requested_on",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Requested On",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_zmev",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "completed_on",
+   "fieldtype": "Datetime",
+   "label": "Completed On"
+  },
+  {
+   "fieldname": "envelope_id",
+   "fieldtype": "Data",
+   "label": "Envelope ID"
+  },
+  {
+   "fieldname": "signing_url",
+   "fieldtype": "Data",
+   "label": "Signing URL"
+  },
+  {
+   "fieldname": "recipients_section",
+   "fieldtype": "Section Break",
+   "label": "Recipients"
+  },
+  {
+   "fieldname": "signature_recipients",
+   "fieldtype": "Table",
+   "label": "Signature Recipients",
+   "options": "Signature Recipient"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-07-22 16:10:29.724660",
+ "modified_by": "Administrator",
+ "module": "Contract Management",
+ "name": "Signature Request",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
