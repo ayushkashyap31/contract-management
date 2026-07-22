@@ -4,6 +4,8 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
+from contract_management.contract_management.constants.workflow import VersionStatus
+
 
 class ContractVersion(Document):
     def before_save(self):
@@ -54,7 +56,7 @@ class ContractVersion(Document):
 
     def validate_status_consistency(self):
         """Ensure status and current version flag are consistent."""
-        if self.is_current and self.status == "Superseded":
+        if self.is_current and self.status == VersionStatus.SUPERSEDED:
             frappe.throw(
                 _("A current version cannot have the status 'Superseded'.")
             )

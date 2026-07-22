@@ -6,6 +6,11 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import now_datetime
 
+from contract_management.contract_management.constants.workflow import (
+    SignatureRecipientStatus,
+    SignatureRequestStatus,
+)
+
 
 class SignatureRequest(Document):
     def validate(self):
@@ -51,7 +56,7 @@ class SignatureRequest(Document):
     def set_completed_on(self):
         """Automatically manage completion timestamp."""
 
-        if self.status == "Completed":
+        if self.status == SignatureRequestStatus.COMPLETED:
             if not self.completed_on:
                 self.completed_on = now_datetime()
         else:
@@ -61,10 +66,10 @@ class SignatureRequest(Document):
         """Prevent multiple active signature requests."""
 
         active_statuses = [
-            "Draft",
-            "Pending",
-            "Sent",
-            "Viewed",
+            SignatureRequestStatus.DRAFT,
+            SignatureRequestStatus.PENDING,
+            SignatureRequestStatus.SENT,
+            SignatureRequestStatus.VIEWED,
         ]
 
         if self.status not in active_statuses:
@@ -138,7 +143,7 @@ class SignatureRequest(Document):
 
         for recipient in self.signature_recipients:
 
-            if recipient.status == "Signed":
+            if recipient.status == SignatureRecipientStatus.SIGNED:
                 if not recipient.signed_on:
                     recipient.signed_on = now_datetime()
             else:

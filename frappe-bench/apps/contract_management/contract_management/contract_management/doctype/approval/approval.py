@@ -6,6 +6,8 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import now_datetime
 
+from contract_management.contract_management.constants.workflow import ApprovalStatus
+
 
 class Approval(Document):
     def validate(self):
@@ -36,7 +38,7 @@ class Approval(Document):
     def set_approval_date(self):
         """Automatically manage the approval date based on status."""
 
-        if self.status == "Approved":
+        if self.status == ApprovalStatus.APPROVED:
             if not self.approval_date:
                 self.approval_date = now_datetime()
         else:
@@ -45,7 +47,7 @@ class Approval(Document):
     def validate_duplicate_pending_approval(self):
         """Prevent multiple pending approvals for the same contract and approver."""
 
-        if self.status != "Pending":
+        if self.status != ApprovalStatus.PENDING:
             return
 
         existing = frappe.db.exists(
@@ -53,7 +55,7 @@ class Approval(Document):
             {
                 "contract": self.contract,
                 "approver": self.approver,
-                "status": "Pending",
+                "status": ApprovalStatus.PENDING,
                 "name": ["!=", self.name],
             },
         )
