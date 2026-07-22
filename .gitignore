@@ -1,0 +1,57 @@
+# ----------------------------
+# Python
+# ----------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+
+# ----------------------------
+# Bench runtime
+# ----------------------------
+frappe-bench/env/
+frappe-bench/logs/
+frappe-bench/config/pids/
+
+# ----------------------------
+# Site generated files
+# ----------------------------
+frappe-bench/sites/assets/
+frappe-bench/sites/*/logs/
+frappe-bench/sites/*/indexes/
+frappe-bench/sites/*/private/files/
+frappe-bench/sites/*/public/files/
+frappe-bench/sites/*/touched_tables.json
+frappe-bench/sites/*/cache/
+frappe-bench/sites/*/.web_cache/
+
+# Site configuration
+frappe-bench/sites/common_site_config.json
+frappe-bench/sites/*/site_config.json
+
+# ----------------------------
+# Ignore Frappe framework
+# ----------------------------
+frappe-bench/apps/frappe/
+
+# ----------------------------
+# Node
+# ----------------------------
+node_modules/
+
+# ----------------------------
+# IDE
+# ----------------------------
+.vscode/
+.idea/
+
+# ----------------------------
+# OS
+# ----------------------------
+.DS_Store
+Thumbs.db
+
+# ----------------------------
+# Python virtual environments
+# ----------------------------
+.venv/
+venv/

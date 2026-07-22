@@ -1,0 +1,31 @@
+{
+    "frappe": {
+        "resolution": {
+            "commit_hash": null,
+            "branch": null
+        },
+        "required": [],
+        "idx": 1,
+        "version": "16.27.1"
+    },
+    "contract_management": {
+        "is_repo": true,
+        "resolution": {
+            "commit_hash": "e80b4a6c5c2b47f1cd5be351c303332074292db3",
+            "branch": "version-16"
+        },
+        "required": [],
+        "idx": 2,
+        "version": "0.0.1"
+    },
+    "docusign_integration": {
+        "is_repo": true,
+        "resolution": {
+            "commit_hash": "eb1f9be24677d992ef9ed5086987403551aeb00d",
+            "branch": "version-16"
+        },
+        "required": [],
+        "idx": 3,
+        "version": "0.0.1"
+    }
+}
