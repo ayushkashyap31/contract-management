@@ -7,9 +7,12 @@
  "engine": "InnoDB",
  "field_order": [
   "contract",
+  "contract_version",
+  "column_break_usaf",
   "approver",
   "status",
   "approval_date",
+  "section_break_zbzm",
   "remarks"
  ],
  "fields": [
@@ -49,12 +52,29 @@
    "fieldname": "remarks",
    "fieldtype": "Small Text",
    "label": "Remarks"
+  },
+  {
+   "fieldname": "contract_version",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Contract Version",
+   "options": "Contract Version",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "column_break_usaf",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_zbzm",
+   "fieldtype": "Section Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-07-22 14:25:59.165856",
+ "modified": "2026-07-23 10:25:36.026453",
  "modified_by": "Administrator",
  "module": "Contract Management",
  "name": "Approval",

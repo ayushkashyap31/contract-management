@@ -23,17 +23,27 @@ class Approval(Document):
         if self.remarks:
             self.remarks = self.remarks.strip()
 
+
+
+
+    #updated the validate required fields to include contract version as well since approval is for a specific version of the contract
+    
     def validate_required_fields(self):
         """Ensure mandatory fields are present."""
 
         if not self.contract:
             frappe.throw(_("Contract is required."))
 
+        if not self.contract_version:
+            frappe.throw(_("Contract Version is required."))
+
         if not self.approver:
             frappe.throw(_("Approver is required."))
 
         if not self.status:
             frappe.throw(_("Status is required."))
+
+
 
     def set_approval_date(self):
         """Automatically manage the approval date based on status."""
@@ -44,8 +54,11 @@ class Approval(Document):
         else:
             self.approval_date = None
 
+
+# updater the validate_duplicate_pending_approval method to check for duplicate pending approvals for the same contract version and approver
+
     def validate_duplicate_pending_approval(self):
-        """Prevent multiple pending approvals for the same contract and approver."""
+        """Prevent multiple pending approvals for the same version and approver."""
 
         if self.status != ApprovalStatus.PENDING:
             return
@@ -53,7 +66,7 @@ class Approval(Document):
         existing = frappe.db.exists(
             "Approval",
             {
-                "contract": self.contract,
+                "contract_version": self.contract_version,
                 "approver": self.approver,
                 "status": ApprovalStatus.PENDING,
                 "name": ["!=", self.name],
@@ -63,6 +76,7 @@ class Approval(Document):
         if existing:
             frappe.throw(
                 _(
-                    "A pending approval already exists for this approver and contract."
+                    "A pending approval already exists for this approver "
+                    "for this contract version."
                 )
             )

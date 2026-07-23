@@ -6,6 +6,10 @@ from frappe.model.document import Document
 
 from contract_management.contract_management.constants.workflow import VersionStatus
 
+from contract_management.contract_management.services.contract_version import (
+    ContractVersionService,
+)
+
 
 class ContractVersion(Document):
     def before_save(self):
@@ -20,6 +24,10 @@ class ContractVersion(Document):
         self.validate_unique_version_number()
         self.validate_status_consistency()
         self.validate_current_version_exists()
+        
+    def submit_for_review(self):
+          """Submit this contract version for review."""
+          return ContractVersionService.submit_for_review(self)
 
     def normalize_fields(self):
         """Normalize user input."""
