@@ -25,6 +25,7 @@ VERSION_TRANSITIONS = {
     },
     VersionStatus.SIGNATURE_REQUESTED: {
         VersionStatus.EXECUTED,
+        VersionStatus.APPROVED,  # Allow restoring when a signature request is cancelled
     },
     VersionStatus.EXECUTED: set(),
     VersionStatus.SUPERSEDED: set(),

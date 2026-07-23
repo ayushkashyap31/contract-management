@@ -143,7 +143,7 @@ class SignatureService:
     def complete_signature_request(
         cls,
         signature_request: Document,
-    ) -> None:
+    ) -> Document:
         """Complete a signature request."""
 
         contract_version = frappe.get_doc(
@@ -167,10 +167,43 @@ class SignatureService:
         signature_request.status = SignatureRequestStatus.COMPLETED
         signature_request.save()
 
-    @staticmethod
-    def cancel_signature_request(signature_request: Document) -> None:
-        """Cancel a signature request."""
-        raise NotImplementedError
+        return signature_request
+
+    @classmethod
+    def cancel_signature_request(
+        cls,
+        signature_request_name: str,
+    ) -> Document:
+        """
+        Cancel a draft or pending signature request.
+
+        Args:
+            signature_request_name: Name of the Signature Request.
+
+        Returns:
+            Updated Signature Request document.
+        """
+
+        signature_request = frappe.get_doc(
+            "Signature Request",
+            signature_request_name,
+        )
+
+        cls._validate_signature_request_for_cancellation(signature_request)
+
+        contract_version = frappe.get_doc(
+            "Contract Version",
+            signature_request.contract_version,
+        )
+
+        if signature_request.status == SignatureRequestStatus.PENDING:
+            cls._restore_contract_version(contract_version)
+
+        cls._mark_signature_request_cancelled(signature_request)
+
+        signature_request.save()
+
+        return signature_request
 
     # -------------------------------------------------------------------------
     # Validation Helpers
@@ -383,4 +416,55 @@ class SignatureService:
         return all(
             recipient.status == SignatureRecipientStatus.SIGNED
             for recipient in signature_request.signature_recipients
+        )
+
+    # -------------------------------------------------------------------------
+    # Cancel Signature Request Helpers
+    # -------------------------------------------------------------------------
+
+    @staticmethod
+    def _validate_signature_request_for_cancellation(
+        signature_request: Document,
+    ) -> None:
+        """Validate that a Signature Request can be cancelled."""
+
+        if signature_request.status not in (
+            SignatureRequestStatus.DRAFT,
+            SignatureRequestStatus.PENDING,
+        ):
+            frappe.throw(
+                _(
+                    "Only draft or pending Signature Requests "
+                    "can be cancelled."
+                ),
+                frappe.ValidationError,
+            )
+
+    @staticmethod
+    def _restore_contract_version(
+        contract_version: Document,
+    ) -> None:
+        """Restore the Contract Version to Approved status."""
+
+        if not WorkflowService.can_transition(
+            current_status=contract_version.status,
+            new_status=VersionStatus.APPROVED,
+            transition_map=VERSION_TRANSITIONS,
+        ):
+            frappe.throw(
+                _("Contract Version cannot be restored to Approved."),
+                frappe.ValidationError,
+            )
+
+        contract_version.status = VersionStatus.APPROVED
+        contract_version.save()
+
+    @staticmethod
+    def _mark_signature_request_cancelled(
+        signature_request: Document,
+    ) -> None:
+        """Mark a Signature Request as cancelled (no save)."""
+
+        signature_request.status = (
+            SignatureRequestStatus.CANCELLED
         )
