@@ -6,6 +6,7 @@ from typing import Any
 import frappe
 from frappe import _
 from frappe.model.document import Document
+from frappe.utils import now_datetime
 
 from contract_management.contract_management.constants.workflow import (
     SignatureRequestStatus,
@@ -99,15 +100,72 @@ class SignatureService:
 
         return signature_request
 
-    @staticmethod
-    def mark_recipient_signed(signature_request: Document) -> None:
-        """Mark a recipient as signed."""
-        raise NotImplementedError
+    @classmethod
+    def mark_recipient_signed(
+        cls,
+        signature_request_name: str,
+        signer: str,
+    ) -> Document:
+        """
+        Mark a recipient as signed.
 
-    @staticmethod
-    def complete_signature_request(signature_request: Document) -> None:
+        Args:
+            signature_request_name: Name of the Signature Request.
+            signer: User ID of the signing recipient.
+
+        Returns:
+            Updated Signature Request document.
+        """
+
+        signature_request = frappe.get_doc(
+            "Signature Request",
+            signature_request_name,
+        )
+
+        cls._validate_signature_request_for_signing(signature_request)
+
+        recipient = cls._get_signature_recipient(
+            signature_request,
+            signer,
+        )
+
+        cls._validate_signature_recipient(recipient)
+        cls._mark_signature_recipient_signed(recipient)
+
+        signature_request.save()
+
+        if cls._all_recipients_signed(signature_request):
+            cls.complete_signature_request(signature_request)
+
+        return signature_request
+
+    @classmethod
+    def complete_signature_request(
+        cls,
+        signature_request: Document,
+    ) -> None:
         """Complete a signature request."""
-        raise NotImplementedError
+
+        contract_version = frappe.get_doc(
+            "Contract Version",
+            signature_request.contract_version,
+        )
+
+        if not WorkflowService.can_transition(
+            current_status=contract_version.status,
+            new_status=VersionStatus.EXECUTED,
+            transition_map=VERSION_TRANSITIONS,
+        ):
+            frappe.throw(
+                _("Contract Version cannot be executed in its current state."),
+                frappe.ValidationError,
+            )
+
+        contract_version.status = VersionStatus.EXECUTED
+        contract_version.save()
+
+        signature_request.status = SignatureRequestStatus.COMPLETED
+        signature_request.save()
 
     @staticmethod
     def cancel_signature_request(signature_request: Document) -> None:
@@ -255,3 +313,74 @@ class SignatureService:
         )
 
         signature_request.save()
+
+    # -------------------------------------------------------------------------
+    # Mark Recipient Signed Helpers
+    # -------------------------------------------------------------------------
+
+    @staticmethod
+    def _validate_signature_request_for_signing(
+        signature_request: Document,
+    ) -> None:
+        """Validate that a Signature Request can receive signatures."""
+
+        if (
+            signature_request.status
+            != SignatureRequestStatus.PENDING
+        ):
+            frappe.throw(
+                _("Only pending Signature Requests can be signed."),
+                frappe.ValidationError,
+            )
+
+    @staticmethod
+    def _get_signature_recipient(
+        signature_request: Document,
+        signer: str,
+    ) -> Document:
+        """Return the matching signature recipient child row."""
+
+        for recipient in signature_request.signature_recipients:
+            if recipient.signer == signer:
+                return recipient
+
+        frappe.throw(
+            _("Signer {0} is not a recipient of this Signature Request.").format(
+                signer,
+            ),
+            frappe.ValidationError,
+        )
+
+    @staticmethod
+    def _validate_signature_recipient(
+        recipient: Document,
+    ) -> None:
+        """Validate that a signature recipient can be marked signed."""
+
+        if recipient.status != SignatureRecipientStatus.PENDING:
+            frappe.throw(
+                _(
+                    "Only pending signature recipients can be marked as signed."
+                ),
+                frappe.ValidationError,
+            )
+
+    @staticmethod
+    def _mark_signature_recipient_signed(
+        recipient: Document,
+    ) -> None:
+        """Mark a signature recipient as signed (no save)."""
+
+        recipient.status = SignatureRecipientStatus.SIGNED
+        recipient.signed_on = now_datetime()
+
+    @staticmethod
+    def _all_recipients_signed(
+        signature_request: Document,
+    ) -> bool:
+        """Return True if every recipient has signed."""
+
+        return all(
+            recipient.status == SignatureRecipientStatus.SIGNED
+            for recipient in signature_request.signature_recipients
+        )
