@@ -12,6 +12,12 @@ from contract_management.contract_management.constants.workflow import (
     SignatureRecipientStatus,
     VersionStatus,
 )
+from contract_management.contract_management.constants.transitions import (
+    VERSION_TRANSITIONS,
+)
+from contract_management.contract_management.services.workflow import (
+    WorkflowService,
+)
 
 RecipientData = dict[str, Any]
 
@@ -60,10 +66,38 @@ class SignatureService:
 
         return signature_request
 
-    @staticmethod
-    def send_signature_request(signature_request: Document) -> None:
-        """Send a signature request."""
-        raise NotImplementedError
+    @classmethod
+    def send_signature_request(
+        cls,
+        signature_request_name: str,
+    ) -> Document:
+        """
+        Send a draft signature request.
+
+        Args:
+            signature_request_name: Name of the Signature Request.
+
+        Returns:
+            Updated Signature Request document.
+        """
+
+        signature_request = frappe.get_doc(
+            "Signature Request",
+            signature_request_name,
+        )
+
+        cls._validate_signature_request(signature_request)
+
+        contract_version = frappe.get_doc(
+            "Contract Version",
+            signature_request.contract_version,
+        )
+
+        cls._validate_contract_version(contract_version)
+        cls._transition_contract_version(contract_version)
+        cls._mark_signature_request_pending(signature_request)
+
+        return signature_request
 
     @staticmethod
     def mark_recipient_signed(signature_request: Document) -> None:
@@ -162,3 +196,62 @@ class SignatureService:
                     "status": SignatureRecipientStatus.PENDING,
                 },
             )
+
+    # -------------------------------------------------------------------------
+    # Send Signature Request Helpers
+    # -------------------------------------------------------------------------
+
+    @staticmethod
+    def _validate_signature_request(
+        signature_request: Document,
+    ) -> None:
+        """Validate that a Signature Request can be sent."""
+
+        if (
+            signature_request.status
+            != SignatureRequestStatus.DRAFT
+        ):
+            frappe.throw(
+                _("Only draft Signature Requests can be sent."),
+                frappe.ValidationError,
+            )
+
+        if not signature_request.signature_recipients:
+            frappe.throw(
+                _("At least one signature recipient is required."),
+                frappe.ValidationError,
+            )
+
+
+
+    @staticmethod
+    def _transition_contract_version(
+        contract_version: Document,
+    ) -> None:
+        """Transition the Contract Version into the signing phase."""
+
+        if not WorkflowService.can_transition(
+            current_status=contract_version.status,
+            new_status=VersionStatus.SIGNATURE_REQUESTED,
+            transition_map=VERSION_TRANSITIONS,
+        ):
+            frappe.throw(
+                _("Contract Version cannot enter the signing phase."),
+                frappe.ValidationError,
+            )
+
+        contract_version.status = VersionStatus.SIGNATURE_REQUESTED
+        contract_version.save()
+
+
+    @staticmethod
+    def _mark_signature_request_pending(
+        signature_request: Document,
+    ) -> None:
+        """Mark the Signature Request as pending."""
+
+        signature_request.status = (
+            SignatureRequestStatus.PENDING
+        )
+
+        signature_request.save()
