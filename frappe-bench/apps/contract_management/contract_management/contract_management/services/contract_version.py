@@ -8,8 +8,15 @@ from frappe import _
 from contract_management.contract_management.constants.transitions import (
     VERSION_TRANSITIONS,
 )
-from contract_management.contract_management.constants.workflow import VersionStatus
-from contract_management.contract_management.services.workflow import WorkflowService
+from contract_management.contract_management.constants.workflow import (
+    VersionStatus,
+)
+from contract_management.contract_management.services.approval import (
+    ApprovalService,
+)
+from contract_management.contract_management.services.workflow import (
+    WorkflowService,
+)
 
 
 class ContractVersionService:
@@ -22,6 +29,9 @@ class ContractVersionService:
 
         Args:
             version: Contract Version document.
+
+        Returns:
+            Contract Version document.
 
         Raises:
             frappe.ValidationError:
@@ -38,7 +48,11 @@ class ContractVersionService:
                 frappe.ValidationError,
             )
 
+        # Move version to the review state.
         version.status = VersionStatus.UNDER_REVIEW
         version.save()
+
+        # Generate approval records for all approval-capable collaborators.
+        ApprovalService.create_for_version(version)
 
         return version

@@ -25,9 +25,10 @@ class ContractVersion(Document):
         self.validate_status_consistency()
         self.validate_current_version_exists()
         
+    @frappe.whitelist()
     def submit_for_review(self):
-          """Submit this contract version for review."""
-          return ContractVersionService.submit_for_review(self)
+        """Submit this contract version for review."""
+        return ContractVersionService.submit_for_review(self)
 
     def normalize_fields(self):
         """Normalize user input."""

@@ -7,13 +7,13 @@ class WorkflowService:
     @staticmethod
     def can_transition(
         current_status: str,
-        next_status: str,
-        transitions: Mapping[str, Set[str]],
+        new_status: str,
+        transition_map: Mapping[str, Set[str]],
     ) -> bool:
         """
         Return True if a transition from the current status
-        to the next status is allowed.
+        to the new status is allowed.
         """
-        
-        allowed_states = transitions.get(current_status, frozenset())
-        return next_status in allowed_states
+
+        allowed_states = transition_map.get(current_status, frozenset())
+        return new_status in allowed_states

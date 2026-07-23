@@ -37,7 +37,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "Draft\nUnder Review\nApproved\nExecuted\nSuperseded",
+   "options": "Draft\nUnder Review\nApproved\nRejected\nExecuted\nSuperseded",
    "reqd": 1
   },
   {

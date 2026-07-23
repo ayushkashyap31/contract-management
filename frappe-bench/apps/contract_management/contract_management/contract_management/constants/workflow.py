@@ -6,6 +6,16 @@ Keeping workflow states centralized avoids hardcoded strings
 throughout the codebase and provides a single source of truth.
 """
 
+# Roles that participate in the approval workflow.
+APPROVAL_ROLES = frozenset(
+    {
+        "Approver",
+        "Legal",
+        "Finance",
+        "Business Owner",
+    }
+)
+
 
 class ContractStatus:
     """Contract lifecycle statuses."""
@@ -33,6 +43,7 @@ class VersionStatus:
     DRAFT = "Draft"
     UNDER_REVIEW = "Under Review"
     APPROVED = "Approved"
+    REJECTED = "Rejected"
     SIGNATURE_REQUESTED = "Signature Requested"
     EXECUTED = "Executed"
     SUPERSEDED = "Superseded"

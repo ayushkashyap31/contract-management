@@ -7,6 +7,7 @@ from frappe.model.document import Document
 from frappe.utils import now_datetime
 
 from contract_management.contract_management.constants.workflow import ApprovalStatus
+from contract_management.contract_management.services.approval import ApprovalService
 
 
 class Approval(Document):
@@ -16,6 +17,17 @@ class Approval(Document):
         self.validate_required_fields()
         self.set_approval_date()
         self.validate_duplicate_pending_approval()
+        self.validate_status_change()
+
+    @frappe.whitelist()
+    def approve(self):
+        """Approve this approval record."""
+        return ApprovalService.approve(self.name)
+
+    @frappe.whitelist()
+    def reject(self):
+        """Reject this approval record."""
+        return ApprovalService.reject(self.name)
 
     def normalize_fields(self):
         """Normalize user input."""
@@ -23,11 +35,6 @@ class Approval(Document):
         if self.remarks:
             self.remarks = self.remarks.strip()
 
-
-
-
-    #updated the validate required fields to include contract version as well since approval is for a specific version of the contract
-    
     def validate_required_fields(self):
         """Ensure mandatory fields are present."""
 
@@ -43,19 +50,13 @@ class Approval(Document):
         if not self.status:
             frappe.throw(_("Status is required."))
 
-
-
     def set_approval_date(self):
         """Automatically manage the approval date based on status."""
 
-        if self.status == ApprovalStatus.APPROVED:
-            if not self.approval_date:
-                self.approval_date = now_datetime()
-        else:
+        if self.status == ApprovalStatus.PENDING:
             self.approval_date = None
-
-
-# updater the validate_duplicate_pending_approval method to check for duplicate pending approvals for the same contract version and approver
+        elif not self.approval_date:
+            self.approval_date = now_datetime()
 
     def validate_duplicate_pending_approval(self):
         """Prevent multiple pending approvals for the same version and approver."""
@@ -78,5 +79,23 @@ class Approval(Document):
                 _(
                     "A pending approval already exists for this approver "
                     "for this contract version."
+                )
+            )
+
+    def validate_status_change(self):
+        """Prevent direct status changes to final states via form edit."""
+
+        if self.is_new():
+            return
+
+        doc_before_save = self.get_doc_before_save()
+        if not doc_before_save:
+            return
+
+        if doc_before_save.status != self.status:
+            frappe.throw(
+                _(
+                    "Approval status cannot be changed directly. "
+                    "Use the Approve or Reject action."
                 )
             )
