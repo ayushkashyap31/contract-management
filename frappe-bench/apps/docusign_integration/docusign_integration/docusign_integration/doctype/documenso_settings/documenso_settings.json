@@ -1,0 +1,115 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "creation": "2026-07-24 10:39:35.275853",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "general_section",
+  "enabled",
+  "connection_section",
+  "base_url",
+  "api_token",
+  "networking_section",
+  "column_break_onpe",
+  "request_timeout",
+  "retry_count",
+  "retry_backoff"
+ ],
+ "fields": [
+  {
+   "default": "1",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled"
+  },
+  {
+   "description": "Documenso server URL (without a trailing slash).",
+   "fieldname": "base_url",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Base URL",
+   "reqd": 1
+  },
+  {
+   "description": "API token used to authenticate requests to Documenso.",
+   "fieldname": "api_token",
+   "fieldtype": "Password",
+   "in_list_view": 1,
+   "label": "API Token",
+   "reqd": 1
+  },
+  {
+   "default": "30",
+   "description": "Maximum time to wait for a response before the request fails.",
+   "fieldname": "request_timeout",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Request Timeout (s)",
+   "reqd": 1
+  },
+  {
+   "default": "3",
+   "description": "Number of retry attempts for transient failures.",
+   "fieldname": "retry_count",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Retry Count",
+   "reqd": 1
+  },
+  {
+   "default": "1.0",
+   "description": "Base delay in seconds between retry attempts.",
+   "fieldname": "retry_backoff",
+   "fieldtype": "Float",
+   "label": "Retry Backoff (s)",
+   "reqd": 1
+  },
+  {
+   "fieldname": "connection_section",
+   "fieldtype": "Section Break",
+   "label": "Connection"
+  },
+  {
+   "fieldname": "networking_section",
+   "fieldtype": "Section Break",
+   "label": "Networking"
+  },
+  {
+   "fieldname": "general_section",
+   "fieldtype": "Section Break",
+   "label": "General"
+  },
+  {
+   "fieldname": "column_break_onpe",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-07-24 11:13:28.355812",
+ "modified_by": "Administrator",
+ "module": "Docusign Integration",
+ "name": "Documenso Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
