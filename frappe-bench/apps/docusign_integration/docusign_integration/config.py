@@ -1,26 +1,21 @@
+"""
+Configuration helpers for the Documenso integration.
+"""
+
 import frappe
-from frappe import _
-from frappe.exceptions import ValidationError
+
+from docusign_integration.exceptions import DocumensoConfigurationError
 
 DOCUMENSO_SETTINGS_DOCTYPE = "Documenso Settings"
 
 
 def get_settings():
-    """Load and return Documenso integration settings.
-
-    Returns:
-        frappe.document.Document: The Documenso Settings document.
-
-    Raises:
-        frappe.exceptions.ValidationError: If integration is disabled.
-    """
+    """Return the cached Documenso integration settings."""
     settings = frappe.get_cached_doc(DOCUMENSO_SETTINGS_DOCTYPE)
 
     if not settings.enabled:
-
-        frappe.throw(
-            _("Documenso integration is disabled."),
-            ValidationError,
+        raise DocumensoConfigurationError(
+            "Documenso integration is disabled."
         )
 
     return settings
