@@ -16,6 +16,9 @@ from contract_management.contract_management.constants.workflow import (
 from contract_management.contract_management.constants.transitions import (
     VERSION_TRANSITIONS,
 )
+from contract_management.contract_management.services.notification import (
+    NotificationService,
+)
 from contract_management.contract_management.services.workflow import (
     WorkflowService,
 )
@@ -98,6 +101,12 @@ class SignatureService:
         cls._transition_contract_version(contract_version)
         cls._mark_signature_request_pending(signature_request)
 
+        cls._notify_safely(
+            NotificationService.notify_signature_request_sent,
+            signature_request,
+            "SIGNATURE_REQUEST_SENT",
+        )
+
         return signature_request
 
     @classmethod
@@ -167,6 +176,12 @@ class SignatureService:
         signature_request.status = SignatureRequestStatus.COMPLETED
         signature_request.save()
 
+        cls._notify_safely(
+            NotificationService.notify_signature_completed,
+            signature_request,
+            "SIGNATURE_COMPLETED",
+        )
+
         return signature_request
 
     @classmethod
@@ -203,7 +218,36 @@ class SignatureService:
 
         signature_request.save()
 
+        cls._notify_safely(
+            NotificationService.notify_signature_cancelled,
+            signature_request,
+            "SIGNATURE_CANCELLED",
+        )
+
         return signature_request
+
+    # -------------------------------------------------------------------------
+    # Safe Notification Helper
+    # -------------------------------------------------------------------------
+
+    @staticmethod
+    def _notify_safely(notify_func, signature_request, event_name):
+        """Execute a notification safely without interrupting the workflow."""
+
+        try:
+            notify_func(signature_request)
+        except Exception:
+            frappe.log_error(
+                title=_("Signature Notification Failed"),
+                message=_(
+                    "Signature Request: {0}\n"
+                    "Event: {1}\n{2}"
+                ).format(
+                    signature_request.name,
+                    event_name,
+                    frappe.get_traceback(),
+                ),
+            )
 
     # -------------------------------------------------------------------------
     # Validation Helpers

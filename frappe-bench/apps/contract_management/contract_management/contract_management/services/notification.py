@@ -25,13 +25,16 @@ class _NotificationEvent(StrEnum):
     APPROVAL_ASSIGNED = "approval_assigned"
     APPROVAL_APPROVED = "approval_approved"
     APPROVAL_REJECTED = "approval_rejected"
+    SIGNATURE_REQUEST_SENT = "signature_request_sent"
+    SIGNATURE_COMPLETED = "signature_completed"
+    SIGNATURE_CANCELLED = "signature_cancelled"
 
 
 class NotificationService:
     """Entry point for all notification-related business logic."""
 
     # -------------------------------------------------------------------------
-    # Public API
+    # Public API — Approval Events
     # -------------------------------------------------------------------------
 
     @classmethod
@@ -77,50 +80,158 @@ class NotificationService:
         cls._create_notification(recipients, message, approval)
 
     # -------------------------------------------------------------------------
-    # Private Helpers
+    # Public API — Signature Events
+    # -------------------------------------------------------------------------
+
+    @classmethod
+    def notify_signature_request_sent(cls, signature_request: Document) -> None:
+        """Send notification when a signature request is sent."""
+
+        contract = cls._resolve_contract(signature_request)
+
+        recipients = cls._get_recipients(
+            signature_request,
+            _NotificationEvent.SIGNATURE_REQUEST_SENT,
+            contract,
+        )
+        message = cls._build_message(
+            contract,
+            _NotificationEvent.SIGNATURE_REQUEST_SENT,
+        )
+        cls._create_notification(recipients, message, signature_request)
+
+    @classmethod
+    def notify_signature_completed(cls, signature_request: Document) -> None:
+        """Send notification when a signature request is completed."""
+
+        contract = cls._resolve_contract(signature_request)
+
+        recipients = cls._get_recipients(
+            signature_request,
+            _NotificationEvent.SIGNATURE_COMPLETED,
+            contract,
+        )
+        message = cls._build_message(
+            contract,
+            _NotificationEvent.SIGNATURE_COMPLETED,
+        )
+        cls._create_notification(recipients, message, signature_request)
+
+    @classmethod
+    def notify_signature_cancelled(cls, signature_request: Document) -> None:
+        """Send notification when a signature request is cancelled."""
+
+        contract = cls._resolve_contract(signature_request)
+
+        recipients = cls._get_recipients(
+            signature_request,
+            _NotificationEvent.SIGNATURE_CANCELLED,
+            contract,
+        )
+        message = cls._build_message(
+            contract,
+            _NotificationEvent.SIGNATURE_CANCELLED,
+        )
+        cls._create_notification(recipients, message, signature_request)
+
+    # -------------------------------------------------------------------------
+    # Private Helpers — Recipient Resolution
     # -------------------------------------------------------------------------
 
     @classmethod
     def _get_recipients(
         cls,
-        approval: Document,
+        doc: Document,
         event: _NotificationEvent,
+        contract: Document | None = None,
     ) -> list[str]:
-        """Resolve notification recipients for an approval event."""
+        """Resolve notification recipients for a notification event."""
 
         if event == _NotificationEvent.APPROVAL_ASSIGNED:
-            if not approval.approver:
+            if not doc.approver:
                 return []
 
-            return [approval.approver]
+            return [doc.approver]
 
-        contract = frappe.get_doc("Contract", approval.contract)
+        if event == _NotificationEvent.SIGNATURE_REQUEST_SENT:
+            return list(
+                {r.signer for r in doc.signature_recipients if r.signer}
+            )
+
+        if contract is None:
+            contract = cls._resolve_contract(doc)
+
+        if not contract:
+            return []
 
         return list({c.user for c in contract.collaborators if c.user})
 
     @classmethod
-    def _build_message(cls, approval: Document, event: _NotificationEvent) -> str:
-        """Build the notification message for an approval event."""
+    def _resolve_contract(cls, doc: Document):
+        """Resolve the Contract document from an Approval or Signature Request."""
+
+        if doc.doctype == "Approval":
+            return frappe.get_doc("Contract", doc.contract)
+
+        if doc.doctype == "Signature Request":
+            version = frappe.get_doc(
+                "Contract Version",
+                doc.contract_version,
+            )
+            return frappe.get_doc("Contract", version.contract)
+
+        return None
+
+    # -------------------------------------------------------------------------
+    # Private Helpers — Message Building
+    # -------------------------------------------------------------------------
+
+    @classmethod
+    def _build_message(
+        cls,
+        doc: Document,
+        event: _NotificationEvent,
+        contract: Document | None = None,
+    ) -> str:
+        """Build the notification message for a notification event."""
 
         if event == _NotificationEvent.APPROVAL_ASSIGNED:
-            return _("<b>Approval Required:</b> {0}").format(approval.contract)
+            return _("<b>Approval Required:</b> {0}").format(doc.contract)
 
         if event == _NotificationEvent.APPROVAL_APPROVED:
-            return _("<b>Approval Approved:</b> {0}").format(approval.contract)
+            return _("<b>Approval Approved:</b> {0}").format(doc.contract)
 
         if event == _NotificationEvent.APPROVAL_REJECTED:
-            return _("<b>Approval Rejected:</b> {0}").format(approval.contract)
+            return _("<b>Approval Rejected:</b> {0}").format(doc.contract)
+
+        if contract is None:
+            contract = cls._resolve_contract(doc)
+
+        contract_name = contract.name if contract else doc.get("contract", "")
+
+        if event == _NotificationEvent.SIGNATURE_REQUEST_SENT:
+            return _("<b>Signature Request Sent:</b> {0}").format(contract_name)
+
+        if event == _NotificationEvent.SIGNATURE_COMPLETED:
+            return _("<b>Signature Completed:</b> {0}").format(contract_name)
+
+        if event == _NotificationEvent.SIGNATURE_CANCELLED:
+            return _("<b>Signature Cancelled:</b> {0}").format(contract_name)
 
         raise NotImplementedError(
             "Notification message for event {0} is not implemented.".format(event)
         )
+
+    # -------------------------------------------------------------------------
+    # Private Helpers — Notification Delivery
+    # -------------------------------------------------------------------------
 
     @classmethod
     def _create_notification(
         cls,
         recipients: list[str],
         message: str,
-        approval: Document,
+        doc: Document,
     ) -> None:
         """Persist and dispatch a notification."""
 
@@ -129,8 +240,8 @@ class NotificationService:
 
         notification_doc = {
             "type": "Alert",
-            "document_type": "Approval",
-            "document_name": approval.name,
+            "document_type": doc.doctype,
+            "document_name": doc.name,
             "subject": message,
             "from_user": frappe.session.user,
         }
