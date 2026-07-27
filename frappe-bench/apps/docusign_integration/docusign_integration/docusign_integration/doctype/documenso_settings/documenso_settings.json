@@ -10,6 +10,8 @@
   "connection_section",
   "base_url",
   "api_token",
+  "webhook_section",
+  "webhook_secret",
   "networking_section",
   "column_break_onpe",
   "request_timeout",
@@ -83,13 +85,24 @@
   {
    "fieldname": "column_break_onpe",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "webhook_section",
+   "fieldtype": "Section Break",
+   "label": "Webhook"
+  },
+  {
+   "description": "Shared secret used to authenticate incoming Documenso webhook requests.",
+   "fieldname": "webhook_secret",
+   "fieldtype": "Password",
+   "label": "Webhook Secret"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-07-24 11:13:28.355812",
+ "modified": "2026-07-27 16:44:47.829118",
  "modified_by": "Administrator",
  "module": "Docusign Integration",
  "name": "Documenso Settings",
