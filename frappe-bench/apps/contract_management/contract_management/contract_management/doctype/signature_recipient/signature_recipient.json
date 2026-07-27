@@ -5,14 +5,15 @@
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
- "field_order": [
-  "signer",
-  "email",
-  "signing_order",
-  "column_break_lbqu",
-  "status",
-  "signed_on"
- ],
+  "field_order": [
+   "signer",
+   "email",
+   "signing_order",
+   "column_break_lbqu",
+   "status",
+   "signed_on",
+   "documenso_recipient_id"
+  ],
  "fields": [
   {
    "fieldname": "signer",
@@ -46,15 +47,21 @@
    "options": "Pending\nSent\nViewed\nSigned\nDeclined",
    "reqd": 1
   },
-  {
-   "fieldname": "signed_on",
-   "fieldtype": "Datetime",
-   "label": "Signed On"
-  },
-  {
-   "fieldname": "column_break_lbqu",
-   "fieldtype": "Column Break"
-  }
+   {
+    "fieldname": "signed_on",
+    "fieldtype": "Datetime",
+    "label": "Signed On"
+   },
+   {
+    "fieldname": "documenso_recipient_id",
+    "fieldtype": "Data",
+    "label": "Documenso Recipient ID",
+    "read_only": 1
+   },
+   {
+    "fieldname": "column_break_lbqu",
+    "fieldtype": "Column Break"
+   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,

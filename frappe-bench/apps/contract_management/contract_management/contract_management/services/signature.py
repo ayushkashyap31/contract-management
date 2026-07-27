@@ -22,6 +22,7 @@ from contract_management.contract_management.services.notification import (
 from contract_management.contract_management.services.workflow import (
     WorkflowService,
 )
+from docusign_integration.provider import DocumensoProvider
 
 RecipientData = dict[str, Any]
 
@@ -98,6 +99,16 @@ class SignatureService:
         )
 
         cls._validate_contract_version(contract_version)
+
+        payload = cls._build_documenso_payload(
+            signature_request,
+            contract_version,
+        )
+        pdf_content = cls._get_pdf_content(contract_version)
+        provider = DocumensoProvider()
+        response = provider.create_document(payload, pdf_content)
+        cls._apply_documenso_metadata(signature_request, response)
+
         cls._transition_contract_version(contract_version)
         cls._mark_signature_request_pending(signature_request)
 
@@ -364,6 +375,74 @@ class SignatureService:
             )
 
 
+
+    @staticmethod
+    def _build_documenso_payload(
+        signature_request: Document,
+        contract_version: Document,
+    ) -> dict[str, Any]:
+        """Build the Documenso create document payload from CLM data."""
+
+        contract = frappe.get_cached_doc(
+            "Contract",
+            contract_version.contract,
+        )
+        title = contract.contract_title or contract_version.name
+
+        recipients = []
+
+        for sr_recipient in signature_request.signature_recipients:
+            user = frappe.get_cached_doc("User", sr_recipient.signer)
+
+            recipients.append(
+                {
+                    "name": user.full_name,
+                    "email": sr_recipient.email,
+                    "role": "SIGNER",
+                    "signingOrder": sr_recipient.signing_order,
+                }
+            )
+
+        return {
+            "title": title,
+            "externalId": signature_request.name,
+            "recipients": recipients,
+        }
+
+    @staticmethod
+    def _get_pdf_content(
+        contract_version: Document,
+    ) -> bytes:
+        """Read PDF bytes from the Contract Version attachment."""
+
+        from frappe.utils.file_manager import get_file
+
+        content, _, _ = get_file(contract_version.document)
+        return content
+
+    @staticmethod
+    def _apply_documenso_metadata(
+        signature_request: Document,
+        response: dict[str, Any],
+    ) -> None:
+        """Apply Documenso external IDs to the in-memory Signature Request."""
+
+        signature_request.envelope_id = str(response["documentId"])
+
+        # Documenso create_document response provides no per-recipient
+        # correlation identifier (e.g. externalId) in the recipient
+        # objects. Email is used to map each Documenso recipient back
+        # to the originating Signature Recipient row.
+        documenso_recipients = response.get("recipients", [])
+        email_map = {r["email"]: r for r in documenso_recipients}
+
+        for sr_recipient in signature_request.signature_recipients:
+            documenso_recipient = email_map.get(sr_recipient.email)
+
+            if documenso_recipient:
+                sr_recipient.documenso_recipient_id = str(
+                    documenso_recipient["recipientId"]
+                )
 
     @staticmethod
     def _transition_contract_version(

@@ -8,7 +8,7 @@ from json import JSONDecodeError
 
 import requests
 
-from docusign_integration.config import get_settings
+from docusign_integration.integration_config import get_settings
 from docusign_integration.exceptions import (
     DocumensoApiError,
     DocumensoAuthenticationError,
