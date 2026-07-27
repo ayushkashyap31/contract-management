@@ -13,6 +13,9 @@ from contract_management.contract_management.constants.workflow import (
     ApprovalStatus,
     VersionStatus,
 )
+from contract_management.contract_management.services.notification import (
+    NotificationService,
+)
 from contract_management.contract_management.services.workflow import (
     WorkflowService,
 )
@@ -36,7 +39,22 @@ class ApprovalService:
             )
 
         for collaborator in approvers:
-            cls._create_approval(contract, contract_version, collaborator)
+            approval = cls._create_approval(contract, contract_version, collaborator)
+
+            try:
+                NotificationService.notify_approval_assigned(approval)
+            except Exception:
+                frappe.log_error(
+                    title=_("Approval Notification Failed"),
+                    message=_(
+                        "Approval: {0}\nApprover: {1}\n"
+                        "Event: APPROVAL_ASSIGNED\n{2}"
+                    ).format(
+                        approval.name,
+                        approval.approver,
+                        frappe.get_traceback(),
+                    ),
+                )
 
     @classmethod
     def approve(cls, approval_name):
@@ -221,3 +239,5 @@ class ApprovalService:
         approval.status = ApprovalStatus.PENDING
 
         approval.insert()
+
+        return approval

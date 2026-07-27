@@ -11,6 +11,11 @@ incrementally in future phases.
 
 from enum import StrEnum
 
+import frappe
+from frappe import _
+from frappe.desk.doctype.notification_log.notification_log import (
+    enqueue_create_notification,
+)
 from frappe.model.document import Document
 
 
@@ -38,29 +43,25 @@ class NotificationService:
             approval,
             _NotificationEvent.APPROVAL_ASSIGNED,
         )
-        cls._create_notification(recipients, message)
+        cls._create_notification(recipients, message, approval)
 
     @classmethod
     def notify_approval_approved(cls, approval: Document) -> None:
         """Send notification when an approval is approved."""
 
-        recipients = cls._get_recipients(approval)
-        message = cls._build_message(
-            approval,
-            _NotificationEvent.APPROVAL_APPROVED,
+        raise NotImplementedError(
+            "Approval approved notification will be implemented "
+            "in a future phase."
         )
-        cls._create_notification(recipients, message)
 
     @classmethod
     def notify_approval_rejected(cls, approval: Document) -> None:
         """Send notification when an approval is rejected."""
 
-        recipients = cls._get_recipients(approval)
-        message = cls._build_message(
-            approval,
-            _NotificationEvent.APPROVAL_REJECTED,
+        raise NotImplementedError(
+            "Approval rejected notification will be implemented "
+            "in a future phase."
         )
-        cls._create_notification(recipients, message)
 
     # -------------------------------------------------------------------------
     # Private Helpers
@@ -70,25 +71,40 @@ class NotificationService:
     def _get_recipients(cls, approval: Document) -> list[str]:
         """Resolve notification recipients for an approval event."""
 
-        raise NotImplementedError(
-            "Notification recipient resolution will be implemented "
-            "in a future phase."
-        )
+        if not approval.approver:
+            return []
+
+        return [approval.approver]
 
     @classmethod
     def _build_message(cls, approval: Document, event: _NotificationEvent) -> str:
         """Build the notification message for an approval event."""
 
+        if event == _NotificationEvent.APPROVAL_ASSIGNED:
+            return _("<b>Approval Required:</b> {0}").format(approval.contract)
+
         raise NotImplementedError(
-            "Notification message building will be implemented "
-            "in a future phase."
+            "Notification message for event {0} is not implemented.".format(event)
         )
 
     @classmethod
-    def _create_notification(cls, recipients: list[str], message: str) -> None:
+    def _create_notification(
+        cls,
+        recipients: list[str],
+        message: str,
+        approval: Document,
+    ) -> None:
         """Persist and dispatch a notification."""
 
-        raise NotImplementedError(
-            "Notification delivery will be implemented "
-            "in a future phase."
-        )
+        if not recipients:
+            return
+
+        notification_doc = {
+            "type": "Alert",
+            "document_type": "Approval",
+            "document_name": approval.name,
+            "subject": message,
+            "from_user": frappe.session.user,
+        }
+
+        enqueue_create_notification(recipients, notification_doc)
