@@ -28,6 +28,7 @@ class _NotificationEvent(StrEnum):
     SIGNATURE_REQUEST_SENT = "signature_request_sent"
     SIGNATURE_COMPLETED = "signature_completed"
     SIGNATURE_CANCELLED = "signature_cancelled"
+    CONTRACT_EXECUTED = "contract_executed"
 
 
 class NotificationService:
@@ -135,6 +136,24 @@ class NotificationService:
         cls._create_notification(recipients, message, signature_request)
 
     # -------------------------------------------------------------------------
+    # Public API — Contract Events
+    # -------------------------------------------------------------------------
+
+    @classmethod
+    def notify_contract_executed(cls, contract_version: Document) -> None:
+        """Send notification when a contract version is fully executed."""
+
+        recipients = cls._get_recipients(
+            contract_version,
+            _NotificationEvent.CONTRACT_EXECUTED,
+        )
+        message = cls._build_message(
+            contract_version,
+            _NotificationEvent.CONTRACT_EXECUTED,
+        )
+        cls._create_notification(recipients, message, contract_version)
+
+    # -------------------------------------------------------------------------
     # Private Helpers — Recipient Resolution
     # -------------------------------------------------------------------------
 
@@ -168,9 +187,12 @@ class NotificationService:
 
     @classmethod
     def _resolve_contract(cls, doc: Document):
-        """Resolve the Contract document from an Approval or Signature Request."""
+        """Resolve the Contract document from an Approval, Signature Request, or Contract Version."""
 
         if doc.doctype == "Approval":
+            return frappe.get_doc("Contract", doc.contract)
+
+        if doc.doctype == "Contract Version":
             return frappe.get_doc("Contract", doc.contract)
 
         if doc.doctype == "Signature Request":
@@ -217,6 +239,9 @@ class NotificationService:
 
         if event == _NotificationEvent.SIGNATURE_CANCELLED:
             return _("<b>Signature Cancelled:</b> {0}").format(contract_name)
+
+        if event == _NotificationEvent.CONTRACT_EXECUTED:
+            return _("<b>Contract Executed:</b> {0}").format(contract_name)
 
         raise NotImplementedError(
             "Notification message for event {0} is not implemented.".format(event)

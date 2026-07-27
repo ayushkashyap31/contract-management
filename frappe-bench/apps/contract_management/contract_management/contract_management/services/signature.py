@@ -182,6 +182,12 @@ class SignatureService:
             "SIGNATURE_COMPLETED",
         )
 
+        cls._notify_safely(
+            NotificationService.notify_contract_executed,
+            contract_version,
+            "CONTRACT_EXECUTED",
+        )
+
         return signature_request
 
     @classmethod
