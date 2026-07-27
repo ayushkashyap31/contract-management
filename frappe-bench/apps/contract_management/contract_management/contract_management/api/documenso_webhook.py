@@ -14,6 +14,11 @@ import frappe
 from frappe import _
 
 from contract_management.contract_management.services.webhook import WebhookService
+from contract_management.contract_management.services.webhook_auth import (
+    DocumensoWebhookAuthError,
+    WebhookAuthenticator,
+)
+from docusign_integration.exceptions import DocumensoConfigurationError
 
 logger = frappe.logger(__name__)
 
@@ -22,9 +27,9 @@ logger = frappe.logger(__name__)
 def handle_webhook() -> dict[str, str]:
     """Receive incoming Documenso webhook events.
 
-    Parses the raw JSON request body and delegates to WebhookService
-    for processing. This endpoint is intentionally thin — all business
-    logic resides in the service layer.
+    Parses the raw JSON request body, authenticates the request using
+    ``X-Documenso-Secret`` header verification, and delegates to
+    WebhookService for processing.
 
     Returns:
         dict: Standard acknowledgment with status and message.
@@ -56,11 +61,24 @@ def handle_webhook() -> dict[str, str]:
             frappe.ValidationError,
         )
 
+    headers = dict(frappe.request.headers)
+
     try:
-        WebhookService.handle(
-            payload=payload,
-            headers=dict(frappe.request.headers),
+        WebhookAuthenticator.verify(headers=headers)
+    except DocumensoConfigurationError:
+        logger.exception("Documenso webhook configuration error.")
+        raise
+    except DocumensoWebhookAuthError:
+        logger.warning(
+            "Documenso webhook authentication failed - event: %s, ip: %s",
+            payload.get("event"),
+            frappe.local.request_ip,
         )
+        frappe.response.http_status_code = 401
+        return {"status": "error", "message": "Unauthorized"}
+
+    try:
+        WebhookService.handle(payload=payload, headers=headers)
     except Exception:
         logger.exception("Documenso webhook processing failed.")
         raise
