@@ -38,7 +38,10 @@ class NotificationService:
     def notify_approval_assigned(cls, approval: Document) -> None:
         """Send notification when an approval is assigned to a user."""
 
-        recipients = cls._get_recipients(approval)
+        recipients = cls._get_recipients(
+            approval,
+            _NotificationEvent.APPROVAL_ASSIGNED,
+        )
         message = cls._build_message(
             approval,
             _NotificationEvent.APPROVAL_ASSIGNED,
@@ -49,32 +52,51 @@ class NotificationService:
     def notify_approval_approved(cls, approval: Document) -> None:
         """Send notification when an approval is approved."""
 
-        raise NotImplementedError(
-            "Approval approved notification will be implemented "
-            "in a future phase."
+        recipients = cls._get_recipients(
+            approval,
+            _NotificationEvent.APPROVAL_APPROVED,
         )
+        message = cls._build_message(
+            approval,
+            _NotificationEvent.APPROVAL_APPROVED,
+        )
+        cls._create_notification(recipients, message, approval)
 
     @classmethod
     def notify_approval_rejected(cls, approval: Document) -> None:
         """Send notification when an approval is rejected."""
 
-        raise NotImplementedError(
-            "Approval rejected notification will be implemented "
-            "in a future phase."
+        recipients = cls._get_recipients(
+            approval,
+            _NotificationEvent.APPROVAL_REJECTED,
         )
+        message = cls._build_message(
+            approval,
+            _NotificationEvent.APPROVAL_REJECTED,
+        )
+        cls._create_notification(recipients, message, approval)
 
     # -------------------------------------------------------------------------
     # Private Helpers
     # -------------------------------------------------------------------------
 
     @classmethod
-    def _get_recipients(cls, approval: Document) -> list[str]:
+    def _get_recipients(
+        cls,
+        approval: Document,
+        event: _NotificationEvent,
+    ) -> list[str]:
         """Resolve notification recipients for an approval event."""
 
-        if not approval.approver:
-            return []
+        if event == _NotificationEvent.APPROVAL_ASSIGNED:
+            if not approval.approver:
+                return []
 
-        return [approval.approver]
+            return [approval.approver]
+
+        contract = frappe.get_doc("Contract", approval.contract)
+
+        return list({c.user for c in contract.collaborators if c.user})
 
     @classmethod
     def _build_message(cls, approval: Document, event: _NotificationEvent) -> str:
@@ -82,6 +104,12 @@ class NotificationService:
 
         if event == _NotificationEvent.APPROVAL_ASSIGNED:
             return _("<b>Approval Required:</b> {0}").format(approval.contract)
+
+        if event == _NotificationEvent.APPROVAL_APPROVED:
+            return _("<b>Approval Approved:</b> {0}").format(approval.contract)
+
+        if event == _NotificationEvent.APPROVAL_REJECTED:
+            return _("<b>Approval Rejected:</b> {0}").format(approval.contract)
 
         raise NotImplementedError(
             "Notification message for event {0} is not implemented.".format(event)

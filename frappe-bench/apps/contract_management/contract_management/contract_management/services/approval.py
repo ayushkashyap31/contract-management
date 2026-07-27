@@ -41,20 +41,11 @@ class ApprovalService:
         for collaborator in approvers:
             approval = cls._create_approval(contract, contract_version, collaborator)
 
-            try:
-                NotificationService.notify_approval_assigned(approval)
-            except Exception:
-                frappe.log_error(
-                    title=_("Approval Notification Failed"),
-                    message=_(
-                        "Approval: {0}\nApprover: {1}\n"
-                        "Event: APPROVAL_ASSIGNED\n{2}"
-                    ).format(
-                        approval.name,
-                        approval.approver,
-                        frappe.get_traceback(),
-                    ),
-                )
+            cls._notify_safely(
+                NotificationService.notify_approval_assigned,
+                approval,
+                "APPROVAL_ASSIGNED",
+            )
 
     @classmethod
     def approve(cls, approval_name):
@@ -91,6 +82,12 @@ class ApprovalService:
         if cls._check_all_approved(approval.contract_version):
             cls._approve_version(approval.contract_version)
 
+        cls._notify_safely(
+            NotificationService.notify_approval_approved,
+            approval,
+            "APPROVAL_APPROVED",
+        )
+
     @classmethod
     def reject(cls, approval_name):
         """
@@ -124,6 +121,32 @@ class ApprovalService:
         cls._update_collaborator_status(approval, ApprovalStatus.REJECTED)
 
         cls._reject_version(approval.contract_version)
+
+        cls._notify_safely(
+            NotificationService.notify_approval_rejected,
+            approval,
+            "APPROVAL_REJECTED",
+        )
+
+    @staticmethod
+    def _notify_safely(notify_func, approval, event_name):
+        """Execute a notification safely without interrupting the workflow."""
+
+        try:
+            notify_func(approval)
+        except Exception:
+            frappe.log_error(
+                title=_("Approval Notification Failed"),
+                message=_(
+                    "Approval: {0}\nApprover: {1}\n"
+                    "Event: {2}\n{3}"
+                ).format(
+                    approval.name,
+                    approval.approver,
+                    event_name,
+                    frappe.get_traceback(),
+                ),
+            )
 
     @classmethod
     def _check_all_approved(cls, contract_version_name):
