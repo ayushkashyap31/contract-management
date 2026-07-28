@@ -42,6 +42,27 @@ class DocumensoProvider:
                 "Failed to upload document to Documenso."
             ) from exc
 
+    def distribute_document(
+        self,
+        envelope_id: str,
+    ) -> dict[str, Any] | list[Any] | None:
+        """Distribute an envelope to its recipients for signing.
+
+        Transitions the document from Draft to Pending inside Documenso
+        and triggers the signing workflow for all assigned recipients.
+
+        Args:
+            envelope_id: The Documenso document/envelope ID.
+
+        Returns:
+            Parsed API response containing recipient signing URLs.
+        """
+
+        return self.client.post(
+            "/api/v2/envelope/distribute",
+            json={"envelopeId": envelope_id},
+        )
+
     def verify_connection(self) -> dict[str, Any] | list[Any] | None:
         """Verify connectivity and authentication with the Documenso API."""
         return self.client.get(

@@ -24,6 +24,8 @@ from contract_management.contract_management.services.workflow import (
 )
 from docusign_integration.provider import DocumensoProvider
 
+logger = frappe.logger(__name__)
+
 RecipientData = dict[str, Any]
 
 
@@ -107,7 +109,13 @@ class SignatureService:
         pdf_content = cls._get_pdf_content(contract_version)
         provider = DocumensoProvider()
         response = provider.create_document(payload, pdf_content)
+
         cls._apply_documenso_metadata(signature_request, response)
+        cls._persist_documenso_metadata(signature_request)
+
+        provider.distribute_document(
+            signature_request.envelope_id,
+        )
 
         cls._transition_contract_version(contract_version)
         cls._mark_signature_request_pending(signature_request)
@@ -119,6 +127,185 @@ class SignatureService:
         )
 
         return signature_request
+
+    # ------------------------------------------------------------------
+    # Webhook Event Handlers
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def process_document_completed(
+        cls,
+        document_payload: dict[str, Any],
+    ) -> None:
+        """Process a ``document.completed`` webhook from Documenso.
+
+        Locates the corresponding Signature Request via ``externalId``,
+        validates payload status, checks idempotency, updates signed
+        recipients, then delegates to the shared completion transition
+        method for the authoritative workflow logic.
+
+        Args:
+            document_payload: The inner ``payload`` object from the
+                Documenso webhook. Must contain ``externalId``
+                and ``status`` at minimum.
+        """
+
+        # ------------------------------------------------------------------
+        # Step 1 — Validate required fields
+        # ------------------------------------------------------------------
+
+        external_id = document_payload.get("externalId")
+        status = document_payload.get("status")
+
+        if not external_id:
+            logger.warning(
+                "DOCUMENT_COMPLETED missing externalId — skipping.",
+            )
+            return
+
+        if status != "COMPLETED":
+            logger.warning(
+                "DOCUMENT_COMPLETED unexpected status — "
+                "expected: COMPLETED, received: %s, externalId: %s",
+                status,
+                external_id,
+            )
+            return
+
+        logger.info(
+            "DOCUMENT_COMPLETED processing started — externalId: %s",
+            external_id,
+        )
+
+        # ------------------------------------------------------------------
+        # Step 2 — Locate Signature Request
+        # ------------------------------------------------------------------
+
+        try:
+            signature_request = frappe.get_doc(
+                "Signature Request",
+                external_id,
+            )
+        except frappe.DoesNotExistError:
+            logger.warning(
+                "DOCUMENT_COMPLETED Signature Request not found — "
+                "externalId: %s",
+                external_id,
+            )
+            return
+
+        logger.info(
+            "DOCUMENT_COMPLETED Signature Request found — "
+            "name: %s, status: %s",
+            signature_request.name,
+            signature_request.status,
+        )
+
+        # ------------------------------------------------------------------
+        # Step 3 — Idempotency
+        # ------------------------------------------------------------------
+
+        if signature_request.status == SignatureRequestStatus.COMPLETED:
+            logger.info(
+                "DOCUMENT_COMPLETED Signature Request already completed — "
+                "name: %s, skipping",
+                signature_request.name,
+            )
+            return
+
+        if signature_request.status in (
+            SignatureRequestStatus.CANCELLED,
+            SignatureRequestStatus.EXPIRED,
+        ):
+            logger.warning(
+                "DOCUMENT_COMPLETED Signature Request in terminal state "
+                "%s — name: %s",
+                signature_request.status,
+                signature_request.name,
+            )
+            return
+
+        # ------------------------------------------------------------------
+        # Step 4 — Load Contract Version
+        # ------------------------------------------------------------------
+
+        contract_version = frappe.get_doc(
+            "Contract Version",
+            signature_request.contract_version,
+        )
+
+        # ------------------------------------------------------------------
+        # Step 5 — Update Signature Recipients
+        # ------------------------------------------------------------------
+
+        for webhook_recipient in document_payload.get("recipients", []):
+            if webhook_recipient.get("signingStatus") != "SIGNED":
+                continue
+
+            documenso_id = str(webhook_recipient["id"])
+            signed_at = webhook_recipient.get("signedAt")
+
+            matched = False
+
+            for sr_recipient in signature_request.signature_recipients:
+                if sr_recipient.documenso_recipient_id == documenso_id:
+                    cls._mark_signature_recipient_signed(
+                        sr_recipient,
+                        signed_on=signed_at,
+                    )
+                    matched = True
+                    logger.info(
+                        "DOCUMENT_COMPLETED recipient matched — "
+                        "documensoId: %s",
+                        documenso_id,
+                    )
+                    break
+
+            if not matched:
+                logger.warning(
+                    "DOCUMENT_COMPLETED recipient not found in "
+                    "Signature Request — documensoId: %s, "
+                    "externalId: %s",
+                    documenso_id,
+                    external_id,
+                )
+
+        # ------------------------------------------------------------------
+        # Step 6 — Apply completion transitions
+        # ------------------------------------------------------------------
+
+        try:
+            cls._apply_completion_transitions(
+                signature_request,
+                contract_version,
+            )
+        except frappe.ValidationError:
+            logger.error(
+                "DOCUMENT_COMPLETED failed to apply completion "
+                "transitions — name: %s",
+                signature_request.name,
+            )
+            return
+
+        logger.info(
+            "DOCUMENT_COMPLETED Signature Request completed — "
+            "name: %s",
+            signature_request.name,
+        )
+
+        logger.info(
+            "DOCUMENT_COMPLETED Contract Version executed — "
+            "name: %s",
+            contract_version.name,
+        )
+
+        # ------------------------------------------------------------------
+        # Step 7 — Notifications (deferred)
+        # ------------------------------------------------------------------
+
+        # TODO: Add notification triggers in the Notifications phase.
+        #   - notify_signature_completed(signature_request)
+        #   - notify_contract_executed(contract_version)
 
     @classmethod
     def mark_recipient_signed(
@@ -160,16 +347,29 @@ class SignatureService:
         return signature_request
 
     @classmethod
-    def complete_signature_request(
+    def _apply_completion_transitions(
         cls,
         signature_request: Document,
-    ) -> Document:
-        """Complete a signature request."""
+        contract_version: Document,
+    ) -> None:
+        """Apply workflow transitions to complete a signature lifecycle.
 
-        contract_version = frappe.get_doc(
-            "Contract Version",
-            signature_request.contract_version,
-        )
+        Validates the Contract Version can transition to ``Executed``
+        using the canonical workflow rules, then applies the status
+        changes to both documents and persists them.
+
+        Shared by the manual completion path (``complete_signature_request``)
+        and the webhook path (``process_document_completed``) to guarantee
+        a single authoritative implementation of the completion logic.
+
+        Args:
+            signature_request: The Signature Request to mark completed.
+            contract_version: The Contract Version to execute.
+
+        Raises:
+            frappe.ValidationError: If the transition is not permitted
+                by the workflow rules.
+        """
 
         if not WorkflowService.can_transition(
             current_status=contract_version.status,
@@ -186,6 +386,23 @@ class SignatureService:
 
         signature_request.status = SignatureRequestStatus.COMPLETED
         signature_request.save()
+
+    @classmethod
+    def complete_signature_request(
+        cls,
+        signature_request: Document,
+    ) -> Document:
+        """Complete a signature request and send notifications."""
+
+        contract_version = frappe.get_doc(
+            "Contract Version",
+            signature_request.contract_version,
+        )
+
+        cls._apply_completion_transitions(
+            signature_request,
+            contract_version,
+        )
 
         cls._notify_safely(
             NotificationService.notify_signature_completed,
@@ -415,9 +632,15 @@ class SignatureService:
     ) -> bytes:
         """Read PDF bytes from the Contract Version attachment."""
 
+        if not contract_version.document:
+            frappe.throw(
+                _("Cannot send for signature because the selected "
+                  "Contract Version has no attached document.")
+            )
+
         from frappe.utils.file_manager import get_file
 
-        content, _, _ = get_file(contract_version.document)
+        _filename, content = get_file(contract_version.document)
         return content
 
     @staticmethod
@@ -443,6 +666,14 @@ class SignatureService:
                 sr_recipient.documenso_recipient_id = str(
                     documenso_recipient["recipientId"]
                 )
+
+    @staticmethod
+    def _persist_documenso_metadata(
+        signature_request: Document,
+    ) -> None:
+        """Persist Documenso envelope and recipient IDs to the database."""
+
+        signature_request.save()
 
     @staticmethod
     def _transition_contract_version(
@@ -530,11 +761,18 @@ class SignatureService:
     @staticmethod
     def _mark_signature_recipient_signed(
         recipient: Document,
+        signed_on: str | None = None,
     ) -> None:
-        """Mark a signature recipient as signed (no save)."""
+        """Mark a signature recipient as signed (no save).
+
+        Args:
+            recipient: The Signature Recipient child row.
+            signed_on: ISO 8601 timestamp from Documenso webhook.
+                Falls back to server time when not provided.
+        """
 
         recipient.status = SignatureRecipientStatus.SIGNED
-        recipient.signed_on = now_datetime()
+        recipient.signed_on = signed_on or now_datetime()
 
     @staticmethod
     def _all_recipients_signed(

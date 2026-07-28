@@ -10,6 +10,9 @@ from contract_management.contract_management.constants.workflow import (
     SignatureRecipientStatus,
     SignatureRequestStatus,
 )
+from contract_management.contract_management.services.signature import (
+    SignatureService,
+)
 
 
 class SignatureRequest(Document):
@@ -148,3 +151,8 @@ class SignatureRequest(Document):
                     recipient.signed_on = now_datetime()
             else:
                 recipient.signed_on = None
+
+    @frappe.whitelist()
+    def send_for_signature(self):
+        """Send this signature request to Documenso for signing."""
+        return SignatureService.send_signature_request(self.name)

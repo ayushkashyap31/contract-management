@@ -20,6 +20,9 @@ import frappe
 from contract_management.contract_management.constants.webhook_events import (
     DocumensoWebhookEvent,
 )
+from contract_management.contract_management.services.signature import (
+    SignatureService,
+)
 
 Handler = Callable[[dict[str, Any]], None]
 
@@ -137,19 +140,17 @@ class WebhookDispatcher:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _handle_document_completed(_payload: dict[str, Any]) -> None:
+    def _handle_document_completed(payload: dict[str, Any]) -> None:
         """Handle ``document.completed`` event.
 
-        TODO ― Phase 5: Implement signature completion processing.
-
-            - Mark signature request as completed.
-            - Execute contract version.
-            - Trigger completion notifications.
+        Extracts the inner document payload and delegates to
+        ``SignatureService.process_document_completed`` for
+        all business processing.
         """
 
-        logger.info(
-            "Documenso event 'document.completed' received — "
-            "TODO: implement signature completion processing.",
+        document_payload = payload.get("payload", {})
+        SignatureService.process_document_completed(
+            document_payload=document_payload,
         )
 
     @staticmethod
