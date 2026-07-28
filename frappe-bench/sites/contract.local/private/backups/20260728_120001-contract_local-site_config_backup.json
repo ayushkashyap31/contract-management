@@ -3,6 +3,7 @@
  "db_password": "kqZcSlJNVNQK78Ex",
  "db_type": "mariadb",
  "db_user": "_d306e84d2e2374e3",
+ "encryption_key": "xvGEFOE2Jw9fIO2CIgV_z9YbzzhmUDZh8t_GxDNpb4U=",
  "installed_apps": [
   "frappe",
   "contract_management",

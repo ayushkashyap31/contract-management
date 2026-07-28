@@ -2,27 +2,32 @@
 # For license information, please see license.txt
 
 """
-WebhookService — entry point for incoming Documenso webhook events.
+WebhookService — orchestrator for incoming Documenso webhook events.
 
-Receives raw webhook payloads from the API endpoint and handles routing
-to the appropriate business service. Event-specific processing will be
-implemented in future phases.
+Receives parsed webhook payloads from the API endpoint and delegates
+event routing to ``WebhookDispatcher``. No event-routing logic or
+business processing resides in this module.
 """
+
+from __future__ import annotations
 
 from typing import Any
 
 import frappe
 
+from contract_management.contract_management.services.webhook_dispatcher import (
+    WebhookDispatcher,
+)
+
 logger = frappe.logger(__name__)
 
 
 class WebhookService:
-    """Entry point for processing incoming Documenso webhook events.
+    """Orchestrator for incoming Documenso webhook events.
 
-    This service receives raw webhook payloads from the API endpoint
-    and handles routing to the appropriate business service based on
-    event type. Event-specific processing will be implemented in
-    future phases.
+    Receives parsed webhook payloads from the API endpoint and delegates
+    event routing to ``WebhookDispatcher``. No event-specific logic or
+    routing decisions reside in this class.
     """
 
     @classmethod
@@ -33,24 +38,17 @@ class WebhookService:
     ) -> None:
         """Process an incoming Documenso webhook payload.
 
-        Validates the payload structure and records receipt.
-        Event routing and business logic will be added in
-        subsequent phases.
+        Validates the payload and forwards it to ``WebhookDispatcher``
+        for event routing and handler invocation.
 
         Args:
             payload: The parsed JSON body of the webhook request.
             headers: The HTTP headers of the webhook request.
-                Reserved for future authentication use.
+                No longer used for authentication — retained for
+                backward compatibility.
 
         Raises:
             TypeError: If payload is not a dictionary.
         """
 
-        if not isinstance(payload, dict):
-            raise TypeError("Webhook payload must be a dictionary.")
-
-        logger.info(
-            "Documenso webhook received - event: %s, top-level keys: %s",
-            payload.get("event"),
-            list(payload.keys()),
-        )
+        WebhookDispatcher.dispatch(payload=payload)
