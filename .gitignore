@@ -55,3 +55,17 @@ Thumbs.db
 # ----------------------------
 .venv/
 venv/
+
+
+# Logs
+*.log
+
+# Debug
+*.patch
+
+# Frappe backups
+sites/*/private/backups/
+
+# Python cache
+__pycache__/
+*.pyc
