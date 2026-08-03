@@ -49,6 +49,7 @@ def handle_webhook() -> dict[str, str]:
 
     try:
         payload = json.loads(raw)
+
     except json.JSONDecodeError:
         frappe.throw(
             _("Invalid JSON in request body."),
@@ -60,6 +61,13 @@ def handle_webhook() -> dict[str, str]:
             _("Webhook payload must be a JSON object."),
             frappe.ValidationError,
         )
+
+    # ---------- TEMP DEBUG START ----------
+    print("=" * 80, flush=True)
+    print("DOCUMENSO WEBHOOK PAYLOAD", flush=True)
+    print(payload, flush=True)
+    print("=" * 80, flush=True)
+    # ---------- TEMP DEBUG END ----------
 
     headers = dict(frappe.request.headers)
 

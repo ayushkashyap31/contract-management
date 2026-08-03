@@ -3,10 +3,20 @@
 
 from typing import Any
 
+import io
+
 import frappe
 from frappe import _
+from pypdf import PdfReader
 from frappe.model.document import Document
 from frappe.utils import now_datetime
+from frappe.utils import get_datetime
+
+from frappe.utils import (
+    get_datetime,
+    convert_utc_to_system_timezone,
+    get_datetime_str,
+)
 
 from contract_management.contract_management.constants.workflow import (
     SignatureRequestStatus,
@@ -102,11 +112,13 @@ class SignatureService:
 
         cls._validate_contract_version(contract_version)
 
+        pdf_content = cls._get_pdf_content(contract_version)
+        cls._validate_pdf_placeholders(pdf_content, signature_request)
+
         payload = cls._build_documenso_payload(
             signature_request,
             contract_version,
         )
-        pdf_content = cls._get_pdf_content(contract_version)
         provider = DocumensoProvider()
         create_response = provider.create_document(payload, pdf_content)
 
@@ -276,19 +288,21 @@ class SignatureService:
         # ------------------------------------------------------------------
         # Step 6 — Apply completion transitions
         # ------------------------------------------------------------------
+    
+        print("========== BEFORE TRANSITIONS ==========", flush=True)
 
         try:
             cls._apply_completion_transitions(
-                signature_request,
-                contract_version,
+                signature_request=signature_request,
+                contract_version=contract_version,
             )
-        except frappe.ValidationError:
-            logger.error(
-                "DOCUMENT_COMPLETED failed to apply completion "
-                "transitions — name: %s",
-                signature_request.name,
-            )
-            return
+
+            print("========== TRANSITIONS SUCCESS ==========", flush=True)
+
+        except Exception as e:
+            print("========== TRANSITIONS FAILED ==========", flush=True)
+            print(repr(e), flush=True)
+            raise
 
         logger.info(
             "DOCUMENT_COMPLETED Signature Request completed — "
@@ -385,10 +399,10 @@ class SignatureService:
             )
 
         contract_version.status = VersionStatus.EXECUTED
-        contract_version.save()
+        contract_version.save(ignore_permissions=True)
 
         signature_request.status = SignatureRequestStatus.COMPLETED
-        signature_request.save()
+        signature_request.save(ignore_permissions=True)
 
     @classmethod
     def complete_signature_request(
@@ -527,6 +541,63 @@ class SignatureService:
                 frappe.throw(
                     _("Each recipient must have a signing order.")
                 )
+
+    @staticmethod
+    def _validate_pdf_placeholders(
+        pdf_content: bytes,
+        signature_request: Document,
+    ) -> None:
+        """Validate the uploaded PDF contains Documenso signature placeholders.
+
+        Documenso scans ``{{signature,rN}}`` placeholders in the PDF during
+        ``envelope/create``. Each recipient in the Signature Request must have a
+        corresponding ``{{signature,rN}}`` placeholder, ordered exactly as
+        ``_build_documenso_payload`` appends them.
+
+        Only the ``signature`` placeholder type is checked here; date/name/email
+        placeholders are intentionally not required.
+
+        Args:
+            pdf_content: Raw PDF bytes read from the Contract Version attachment.
+            signature_request: The Signature Request being sent.
+
+        Raises:
+            frappe.ValidationError: If any recipient's signature placeholder
+                is missing from the PDF.
+        """
+
+        try:
+            reader = PdfReader(io.BytesIO(pdf_content))
+            extracted = "".join(
+                page.extract_text() or "" for page in reader.pages
+            )
+        except TypeError:
+            # PyPDF raises TypeError when a page has no resources (e.g. a blank page)
+            extracted = ""
+
+        normalized = "".join(extracted.lower().split())
+            
+        
+
+        missing: list[str] = []
+
+        for index, recipient in enumerate(
+            signature_request.signature_recipients,
+            start=1,
+        ):
+            placeholder = f"{{{{signature,r{index}}}}}"
+            if placeholder not in normalized:
+                missing.append(placeholder)
+
+        if missing:
+            message = _(
+                "The uploaded PDF is not prepared for Documenso signatures.\n\n"
+                "Missing placeholder(s):\n{missing}\n\n"
+                "Please upload a PDF containing the required Documenso "
+                "signature placeholders."
+            ).format(missing="\n".join(missing))
+
+            frappe.throw(message, frappe.ValidationError)
 
     # -------------------------------------------------------------------------
     # Builders
@@ -783,7 +854,18 @@ class SignatureService:
         """
 
         recipient.status = SignatureRecipientStatus.SIGNED
-        recipient.signed_on = signed_on or now_datetime()
+        
+
+        if signed_on:
+            utc_dt = get_datetime(signed_on)
+
+            print("SIGNED_ON TYPE:", type(utc_dt), flush=True)
+            print("SIGNED_ON VALUE:", repr(utc_dt), flush=True)
+            
+            local_dt = convert_utc_to_system_timezone(utc_dt)
+            recipient.signed_on = get_datetime_str(local_dt)
+        else:
+            recipient.signed_on = now_datetime()
 
     @staticmethod
     def _all_recipients_signed(

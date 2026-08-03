@@ -22,20 +22,20 @@ class DocumensoWebhookEvent:
         event = DocumensoWebhookEvent.DOCUMENT_COMPLETED
     """
 
-    DOCUMENT_COMPLETED: str = "document.completed"
+    DOCUMENT_COMPLETED: str = "DOCUMENT_COMPLETED"
     """Document fully signed by all recipients."""
 
-    DOCUMENT_DELETED: str = "document.deleted"
+    DOCUMENT_DELETED: str = "DOCUMENT_DELETED"
     """Document removed from Documenso."""
 
-    DOCUMENT_REJECTED: str = "document.rejected"
+    DOCUMENT_REJECTED: str = "DOCUMENT_REJECTED"
     """Document declined by a recipient."""
 
-    DOCUMENT_SENT: str = "document.sent"
+    DOCUMENT_SENT: str = "DOCUMENT_SENT"
     """Document dispatched to recipients for signature."""
 
-    RECIPIENT_COMPLETED: str = "recipient.completed"
+    RECIPIENT_COMPLETED: str = "RECIPIENT_COMPLETED"
     """Individual recipient completed their signing task."""
 
-    RECIPIENT_SIGNED: str = "recipient.signed"
+    RECIPIENT_SIGNED: str = "RECIPIENT_SIGNED"
     """Individual recipient signed the document."""

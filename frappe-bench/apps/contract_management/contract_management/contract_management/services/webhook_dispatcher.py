@@ -82,12 +82,18 @@ class WebhookDispatcher:
 
         event = event.strip()
 
+        print("=" * 40, flush=True)
+        print(f"EVENT RECEIVED: {event}", flush=True)
+
         logger.info(
             "Documenso webhook received - event: %s",
             event,
         )
 
         handler = cls._get_handler(event)
+
+        print(f"HANDLER FOUND: {handler}", flush=True)
+        print("=" * 40, flush=True)
 
         if handler is None:
             logger.warning(
