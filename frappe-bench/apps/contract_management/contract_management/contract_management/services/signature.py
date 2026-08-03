@@ -108,14 +108,17 @@ class SignatureService:
         )
         pdf_content = cls._get_pdf_content(contract_version)
         provider = DocumensoProvider()
-        response = provider.create_document(payload, pdf_content)
+        create_response = provider.create_document(payload, pdf_content)
 
-        cls._apply_documenso_metadata(signature_request, response)
+        cls._apply_envelope_metadata(signature_request, create_response)
         cls._persist_documenso_metadata(signature_request)
 
-        provider.distribute_document(
+        distribute_response = provider.distribute_document(
             signature_request.envelope_id,
         )
+
+        cls._apply_recipient_metadata(signature_request, distribute_response)
+        cls._persist_documenso_metadata(signature_request)
 
         cls._transition_contract_version(contract_version)
         cls._mark_signature_request_pending(signature_request)
@@ -645,28 +648,35 @@ class SignatureService:
         return content
 
     @staticmethod
-    def _apply_documenso_metadata(
+    def _apply_envelope_metadata(
         signature_request: Document,
-        response: dict[str, Any],
+        create_response: dict[str, Any],
     ) -> None:
-        """Apply Documenso external IDs to the in-memory Signature Request."""
+        """Apply Documenso envelope ID from create response to the in-memory Signature Request."""
 
-        signature_request.envelope_id = str(response["documentId"])
+        signature_request.envelope_id = str(create_response["id"])
 
-        # Documenso create_document response provides no per-recipient
-        # correlation identifier (e.g. externalId) in the recipient
-        # objects. Email is used to map each Documenso recipient back
-        # to the originating Signature Recipient row.
-        documenso_recipients = response.get("recipients", [])
-        email_map = {r["email"]: r for r in documenso_recipients}
+    @staticmethod
+    def _apply_recipient_metadata(
+        signature_request: Document,
+        distribute_response: dict[str, Any],
+    ) -> None:
+        """Apply Documenso recipient metadata from distribute response to the in-memory Signature Request."""
+
+        documenso_recipients = distribute_response.get("recipients", [])
+        email_map = {r["email"]: r for r in documenso_recipients if "email" in r}
 
         for sr_recipient in signature_request.signature_recipients:
             documenso_recipient = email_map.get(sr_recipient.email)
 
             if documenso_recipient:
-                sr_recipient.documenso_recipient_id = str(
-                    documenso_recipient["recipientId"]
-                )
+                recipient_id = documenso_recipient.get("recipientId") or documenso_recipient.get("id")
+                if recipient_id is not None:
+                    sr_recipient.documenso_recipient_id = str(recipient_id)
+
+                if "signingUrl" in documenso_recipient:
+                    signature_request.signing_url = str(documenso_recipient["signingUrl"])
+
 
     @staticmethod
     def _persist_documenso_metadata(
