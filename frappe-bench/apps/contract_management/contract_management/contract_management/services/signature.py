@@ -621,6 +621,7 @@ class SignatureService:
             )
 
         return {
+            "type": "DOCUMENT",
             "title": title,
             "externalId": signature_request.name,
             "recipients": recipients,

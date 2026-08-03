@@ -1,8 +1,6 @@
+import json
 from typing import Any
 
-import requests as requests_lib
-
-from docusign_integration.exceptions import DocumensoRequestError
 from docusign_integration.http_client import DocumensoHttpClient
 
 
@@ -19,28 +17,13 @@ class DocumensoProvider:
     ) -> dict[str, Any]:
         """Create a document in Documenso and upload the PDF."""
 
-        response = self.client.post("/api/v1/documents", json=payload)
-        self._upload_document(response["uploadUrl"], pdf_content)
-        return response
+        title = str(payload.get("title") or "document")
 
-    def _upload_document(
-        self,
-        upload_url: str,
-        pdf_content: bytes,
-    ) -> None:
-        """Upload PDF bytes to the presigned S3 URL."""
-
-        try:
-            upload_response = requests_lib.put(
-                upload_url,
-                data=pdf_content,
-                headers={"Content-Type": "application/octet-stream"},
-            )
-            upload_response.raise_for_status()
-        except requests_lib.RequestException as exc:
-            raise DocumensoRequestError(
-                "Failed to upload document to Documenso."
-            ) from exc
+        return self.client.post(
+            "/api/v2/envelope/create",
+            data={"payload": json.dumps(payload)},
+            files={"files": (f"{title}.pdf", pdf_content, "application/pdf")},
+        )
 
     def distribute_document(
         self,
