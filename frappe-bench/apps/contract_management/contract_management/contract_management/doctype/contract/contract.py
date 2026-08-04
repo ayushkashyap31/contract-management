@@ -5,6 +5,10 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
+from contract_management.contract_management.services.contract import (
+    ContractService,
+)
+
 
 class Contract(Document):
     def validate(self):
@@ -13,6 +17,17 @@ class Contract(Document):
         self.validate_required_fields()
         self.validate_dates()
         self.validate_unique_collaborators()
+
+    @frappe.whitelist()
+    def create_version(self):
+        """
+        Compute initial values for a new draft version of this contract.
+
+        Returns:
+            dict: Initial field values for the new Contract Version:
+                contract, version_number, status, is_current.
+        """
+        return ContractService.get_initial_version_values(self)
 
     def normalize_fields(self):
         """Normalize user input."""

@@ -15,7 +15,8 @@
   "effective_date",
   "expiration_date",
   "collaborators_section",
-  "collaborators"
+  "collaborators",
+  "amended_from"
  ],
  "fields": [
   {
@@ -77,12 +78,23 @@
    "fieldtype": "Table",
    "label": "Collaborators",
    "options": "Collaborator"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Contract",
+   "print_hide": 1,
+   "read_only": 1,
+   "search_index": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
+ "is_submittable": 1,
  "links": [],
- "modified": "2026-07-22 12:51:07.307543",
+ "modified": "2026-08-04 11:56:40.600819",
  "modified_by": "Administrator",
  "module": "Contract Management",
  "name": "Contract",
