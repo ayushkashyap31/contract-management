@@ -1,0 +1,137 @@
+[
+	{
+		"doctype": "Workflow",
+		"name": "Contract Version Workflow",
+		"workflow_name": "Contract Version Workflow",
+		"document_type": "Contract Version",
+		"workflow_state_field": "status",
+		"is_active": 1,
+		"override_status": 0,
+		"send_email_alert": 0,
+		"enable_action_confirmation": 0,
+		"states": [
+			{
+				"state": "Draft",
+				"doc_status": "0",
+				"allow_edit": "Contract Manager",
+				"is_optional_state": 0,
+				"send_email": 0,
+				"evaluate_as_expression": 0
+			},
+			{
+				"state": "Under Review",
+				"doc_status": "0",
+				"allow_edit": "System Manager",
+				"is_optional_state": 0,
+				"send_email": 0,
+				"evaluate_as_expression": 0
+			},
+			{
+				"state": "Approved",
+				"doc_status": "0",
+				"allow_edit": "System Manager",
+				"is_optional_state": 0,
+				"send_email": 0,
+				"evaluate_as_expression": 0
+			},
+			{
+				"state": "Rejected",
+				"doc_status": "0",
+				"allow_edit": "Contract Manager",
+				"is_optional_state": 0,
+				"send_email": 0,
+				"evaluate_as_expression": 0
+			},
+			{
+				"state": "Signature Requested",
+				"doc_status": "0",
+				"allow_edit": "System Manager",
+				"is_optional_state": 0,
+				"send_email": 0,
+				"evaluate_as_expression": 0
+			},
+			{
+				"state": "Executed",
+				"doc_status": "0",
+				"allow_edit": "System Manager",
+				"is_optional_state": 0,
+				"send_email": 0,
+				"evaluate_as_expression": 0
+			},
+			{
+				"state": "Superseded",
+				"doc_status": "0",
+				"allow_edit": "System Manager",
+				"is_optional_state": 0,
+				"send_email": 0,
+				"evaluate_as_expression": 0
+			}
+		],
+		"transitions": [
+			{
+				"state": "Draft",
+				"action": "Submit for Review",
+				"next_state": "Under Review",
+				"allowed": "Contract Manager",
+				"allow_self_approval": 1,
+				"send_email_to_creator": 0
+			},
+			{
+				"state": "Under Review",
+				"action": "Approve",
+				"next_state": "Approved",
+				"allowed": "Approver",
+				"allow_self_approval": 1,
+				"send_email_to_creator": 0
+			},
+			{
+				"state": "Under Review",
+				"action": "Reject",
+				"next_state": "Rejected",
+				"allowed": "Approver",
+				"allow_self_approval": 1,
+				"send_email_to_creator": 0
+			},
+			{
+				"state": "Rejected",
+				"action": "Revise",
+				"next_state": "Draft",
+				"allowed": "Contract Manager",
+				"allow_self_approval": 1,
+				"send_email_to_creator": 0
+			},
+			{
+				"state": "Approved",
+				"action": "Request Signature",
+				"next_state": "Signature Requested",
+				"allowed": "Contract Manager",
+				"allow_self_approval": 1,
+				"send_email_to_creator": 0
+			},
+			{
+				"state": "Approved",
+				"action": "Supersede",
+				"next_state": "Superseded",
+				"allowed": "Contract Manager",
+				"allow_self_approval": 1,
+				"send_email_to_creator": 0
+			},
+			{
+				"state": "Signature Requested",
+				"action": "Complete Signing",
+				"next_state": "Executed",
+				"allowed": "System Manager",
+				"allow_self_approval": 1,
+				"send_email_to_creator": 0
+			},
+			{
+				"state": "Signature Requested",
+				"action": "Cancel Signature",
+				"next_state": "Approved",
+				"allowed": "System Manager",
+				"allow_self_approval": 1,
+				"send_email_to_creator": 0
+			}
+		]
+	}
+]

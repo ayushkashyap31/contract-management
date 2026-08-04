@@ -1,0 +1,42 @@
+[
+	{
+		"doctype": "Workflow Action Master",
+		"name": "Submit for Review",
+		"workflow_action_name": "Submit for Review"
+	},
+	{
+		"doctype": "Workflow Action Master",
+		"name": "Approve",
+		"workflow_action_name": "Approve"
+	},
+	{
+		"doctype": "Workflow Action Master",
+		"name": "Reject",
+		"workflow_action_name": "Reject"
+	},
+	{
+		"doctype": "Workflow Action Master",
+		"name": "Revise",
+		"workflow_action_name": "Revise"
+	},
+	{
+		"doctype": "Workflow Action Master",
+		"name": "Request Signature",
+		"workflow_action_name": "Request Signature"
+	},
+	{
+		"doctype": "Workflow Action Master",
+		"name": "Supersede",
+		"workflow_action_name": "Supersede"
+	},
+	{
+		"doctype": "Workflow Action Master",
+		"name": "Complete Signing",
+		"workflow_action_name": "Complete Signing"
+	},
+	{
+		"doctype": "Workflow Action Master",
+		"name": "Cancel Signature",
+		"workflow_action_name": "Cancel Signature"
+	}
+]

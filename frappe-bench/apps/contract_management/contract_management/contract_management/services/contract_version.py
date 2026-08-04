@@ -48,9 +48,8 @@ class ContractVersionService:
                 frappe.ValidationError,
             )
 
-        # Move version to the review state.
-        version.status = VersionStatus.UNDER_REVIEW
-        version.save()
+        # Move version to the review state via the workflow engine.
+        WorkflowService.apply_action(version, "Submit for Review")
 
         # Generate approval records for all approval-capable collaborators.
         ApprovalService.create_for_version(version)
