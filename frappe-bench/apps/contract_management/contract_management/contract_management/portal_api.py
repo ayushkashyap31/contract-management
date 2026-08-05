@@ -43,3 +43,43 @@ def get_session_info():
 		"user": frappe.session.user,
 		"counterparty": counterparty,
 	}
+
+
+_CONTRACT_ROW_SQL = """
+	SELECT
+		cv.contract AS name,
+		c.contract_title,
+		c.status,
+		cv.status AS version_status,
+		cv.version_number,
+		c.effective_date,
+		c.expiration_date,
+		c.modified
+	FROM `tabContract Version` cv
+	JOIN `tabContract` c ON c.name = cv.contract
+	WHERE c.counterparty = %(counterparty)s
+		AND cv.is_current = 1
+		AND c.docstatus = 1
+	ORDER BY FIELD(cv.status, 'Signature Requested', 'Under Review', 'Approved', 'Draft', 'Executed', 'Expired', 'Cancelled'),
+		c.modified DESC
+"""
+
+
+@frappe.whitelist()
+def get_dashboard():
+	"""Return the portal dashboard data for the logged-in counterparty.
+
+	Counts are derived client-side from the single `contracts` list.
+	"""
+	counterparty = _require_counterparty()
+
+	contracts = frappe.db.sql(
+		_CONTRACT_ROW_SQL,
+		{"counterparty": counterparty.name},
+		as_dict=True,
+	)
+
+	return {
+		"counterparty": counterparty,
+		"contracts": contracts,
+	}
