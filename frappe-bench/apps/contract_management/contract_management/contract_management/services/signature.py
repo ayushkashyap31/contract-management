@@ -68,7 +68,6 @@ class SignatureService:
         )
 
         SignatureService._validate_contract_version(contract_version)
-        SignatureService._validate_recipients(recipients)
 
         signature_request = SignatureService._build_signature_request(
             contract_version
@@ -104,6 +103,12 @@ class SignatureService:
         )
 
         cls._validate_signature_request(signature_request)
+        cls._validate_recipients(
+            [
+                {"signer": r.signer, "signing_order": r.signing_order}
+                for r in signature_request.signature_recipients
+            ]
+        )
 
         contract_version = frappe.get_doc(
             "Contract Version",
@@ -398,8 +403,10 @@ class SignatureService:
                 frappe.ValidationError,
             )
 
-        contract_version.status = VersionStatus.EXECUTED
-        contract_version.save(ignore_permissions=True)
+        WorkflowService.apply_system_action(
+            contract_version,
+            "Complete Signing",
+        )
 
         signature_request.status = SignatureRequestStatus.COMPLETED
         signature_request.save(ignore_permissions=True)
@@ -773,9 +780,10 @@ class SignatureService:
                 frappe.ValidationError,
             )
 
-        contract_version.status = VersionStatus.SIGNATURE_REQUESTED
-        contract_version.save()
-
+        WorkflowService.apply_action(
+            contract_version,
+            "Request Signature",
+        )
 
     @staticmethod
     def _mark_signature_request_pending(
@@ -916,8 +924,10 @@ class SignatureService:
                 frappe.ValidationError,
             )
 
-        contract_version.status = VersionStatus.APPROVED
-        contract_version.save()
+        WorkflowService.apply_system_action(
+            contract_version,
+            "Cancel Signature",
+        )
 
     @staticmethod
     def _mark_signature_request_cancelled(

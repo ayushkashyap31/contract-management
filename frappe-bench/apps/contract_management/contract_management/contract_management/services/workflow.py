@@ -1,3 +1,5 @@
+import frappe
+
 from collections.abc import Mapping, Set
 
 from frappe.model.document import Document
@@ -60,3 +62,42 @@ class WorkflowService:
         finally:
             if ignore_permissions:
                 doc.flags.ignore_permissions = False
+
+    @staticmethod
+    def apply_system_action(
+        doc: Document,
+        action: str,
+    ) -> Document:
+        """
+        Apply a workflow action as Administrator for system-driven flows.
+
+        Background and webhook flows (e.g. Documenso completion events
+        received as Guest) cannot pass the workflow engine's session-user
+        role and read checks. This method temporarily elevates to
+        Administrator for the duration of the transition and always
+        restores the original session user afterwards.
+
+        Args:
+            doc: Document to transition. Must already be persisted.
+            action: Name of the workflow action to apply.
+
+        Returns:
+            Document: The document after the transition has been applied.
+
+        Raises:
+            frappe.ValidationError:
+                If the action is not permitted from the document's current
+                state, or the doctype has no active workflow.
+        """
+
+        previous_user = frappe.session.user
+
+        try:
+            frappe.set_user("Administrator")
+            return WorkflowService.apply_action(
+                doc,
+                action,
+                ignore_permissions=True,
+            )
+        finally:
+            frappe.set_user(previous_user)

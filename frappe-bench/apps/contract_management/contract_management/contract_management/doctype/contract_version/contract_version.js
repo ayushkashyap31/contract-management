@@ -16,5 +16,13 @@ frappe.ui.form.on("Contract Version", {
                 });
             });
         }
+
+        if (frm.doc.status === "Approved") {
+            frm.add_custom_button(__("Create Signature Request"), () => {
+                frm.call("create_signature_request").then((r) => {
+                    frappe.set_route("Form", "Signature Request", r.message);
+                });
+            });
+        }
     },
 });

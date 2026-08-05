@@ -10,6 +10,10 @@ from contract_management.contract_management.services.contract_version import (
     ContractVersionService,
 )
 
+from contract_management.contract_management.services.signature import (
+    SignatureService,
+)
+
 
 class ContractVersion(Document):
     def before_save(self):
@@ -29,6 +33,15 @@ class ContractVersion(Document):
     def submit_for_review(self):
         """Submit this contract version for review."""
         return ContractVersionService.submit_for_review(self)
+
+    @frappe.whitelist()
+    def create_signature_request(self):
+        """Create a draft signature request for this contract version."""
+        signature_request = SignatureService.create_signature_request(
+            self.name,
+            recipients=[],
+        )
+        return signature_request.name
 
     def normalize_fields(self):
         """Normalize user input."""
