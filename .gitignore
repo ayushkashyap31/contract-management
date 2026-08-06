@@ -4,6 +4,9 @@
 __pycache__/
 *.py[cod]
 *.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # ----------------------------
 # Bench runtime
@@ -20,6 +23,7 @@ frappe-bench/sites/*/logs/
 frappe-bench/sites/*/indexes/
 frappe-bench/sites/*/private/files/
 frappe-bench/sites/*/public/files/
+frappe-bench/sites/*/private/backups/
 frappe-bench/sites/*/touched_tables.json
 frappe-bench/sites/*/cache/
 frappe-bench/sites/*/.web_cache/
@@ -56,16 +60,8 @@ Thumbs.db
 .venv/
 venv/
 
-
 # Logs
 *.log
 
 # Debug
 *.patch
-
-# Frappe backups
-sites/*/private/backups/
-
-# Python cache
-__pycache__/
-*.pyc
