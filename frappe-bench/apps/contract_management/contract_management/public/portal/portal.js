@@ -1,4 +1,4 @@
-const { createApp, reactive, ref, computed } = Vue;
+const { createApp, reactive, ref, computed, watch } = Vue;
 
 /* ------------------------------------------------------------------
    Store
@@ -153,6 +153,18 @@ function loadDashboard() {
 		})
 		.catch(() => {
 			store.phase = "error";
+		});
+}
+
+function refreshDashboard() {
+	api("get_dashboard")
+		.then((r) => {
+			if (r.message && Array.isArray(r.message.contracts)) {
+				store.contracts = r.message.contracts;
+			}
+		})
+		.catch(() => {
+			/* keep the last known list on a silent refresh failure */
 		});
 }
 
@@ -429,9 +441,39 @@ const DocumentCard = {
 
 const ApprovalCard = {
 	components: { StatusBadge },
-	props: ["approval"],
-	setup() {
-		return { icons, fmtDateTime };
+	props: {
+		approval: { type: Object, default: null },
+		contractName: { type: String, default: "" },
+		canReview: { type: Boolean, default: false },
+	},
+	emits: ["done"],
+	setup(props, { emit }) {
+		const decision = reactive({ remarks: "", busy: false, error: "", done: null });
+
+		const submit = (action) => {
+			if (decision.busy) return;
+			decision.busy = true;
+			decision.error = "";
+			api("review_contract", {
+				contract_name: props.contractName,
+				action,
+				remarks: decision.remarks,
+			})
+				.then((r) => {
+					decision.done = action;
+					decision.busy = false;
+					// Let the success confirmation render, then refresh the
+					// panel with the server-confirmed state.
+					setTimeout(() => emit("done", action), 1400);
+				})
+				.catch((e) => {
+					decision.busy = false;
+					decision.error =
+						e && e.message ? e.message : "Could not submit your decision. Please try again.";
+				});
+		};
+
+		return { decision, submit, icons, fmtDateTime };
 	},
 	template: `
 		<section class="detail-card side-card">
@@ -442,20 +484,43 @@ const ApprovalCard = {
 					<status-badge v-if="approval" :status="approval.status" />
 				</div>
 			</div>
+
 			<template v-if="approval">
 				<div class="side-rows">
 					<div class="side-row">
 						<span class="side-label">Reviewer</span>
 						<span class="side-value">{{ approval.approver_name }}</span>
 					</div>
-					<div class="side-row">
-						<span class="side-label">{{ approval.status === 'Pending' ? 'Since' : 'Decided' }}</span>
-						<span class="side-value">{{ approval.approval_date ? fmtDateTime(approval.approval_date) : 'Awaiting decision' }}</span>
+					<div class="side-row" v-if="approval.status !== 'Pending'">
+						<span class="side-label">Decided</span>
+						<span class="side-value">{{ approval.approval_date ? fmtDateTime(approval.approval_date) : '—' }}</span>
 					</div>
 				</div>
 				<p class="card-footnote" v-if="approval.remarks">{{ approval.remarks }}</p>
 			</template>
 			<p class="card-empty" v-else>No review has been requested for this version.</p>
+
+			<div class="approval-success" v-if="decision.done">
+				<span class="success-icon" v-html="icons.check"></span>
+				<span>{{ decision.done === 'approve' ? 'Contract approved' : 'Contract rejected' }}</span>
+			</div>
+
+			<div class="approval-panel" v-else-if="canReview && approval && approval.status === 'Pending'">
+				<label class="approval-label" for="approval-remarks">Remarks</label>
+				<textarea id="approval-remarks" class="remarks-input" rows="3"
+					v-model="decision.remarks"
+					:disabled="decision.busy"
+					placeholder="Add a note for the reviewer…"></textarea>
+				<p class="approval-error" v-if="decision.error">{{ decision.error }}</p>
+				<div class="approval-actions">
+					<button class="reject-btn" :disabled="decision.busy" @click="submit('reject')">
+						{{ decision.busy ? 'Submitting…' : 'Reject' }}
+					</button>
+					<button class="primary-btn approve-btn" :disabled="decision.busy" @click="submit('approve')">
+						{{ decision.busy ? 'Submitting…' : 'Approve' }}
+					</button>
+				</div>
+			</div>
 		</section>
 	`,
 };
@@ -607,7 +672,11 @@ const ContractDetailPage = {
 						<document-card :version="state.data.current_version" />
 					</div>
 					<aside class="detail-aside">
-						<approval-card :approval="state.data.approval" />
+						<approval-card
+							:approval="state.data.approval"
+							:contract-name="state.data.contract.name"
+							:can-review="state.data.can_review"
+							@done="load" />
 						<signature-card :signature="state.data.signature" />
 					</aside>
 				</div>
@@ -621,6 +690,14 @@ const ContractDetailPage = {
 const PortalShell = {
 	components: { PortalHeader, DashboardPage, ContractDetailPage },
 	setup() {
+		watch(
+			() => store.route.view,
+			(view) => {
+				if (view === "dashboard" && store.phase === "ready") {
+					refreshDashboard();
+				}
+			}
+		);
 		return { store, loadDashboard, icons };
 	},
 	template: `

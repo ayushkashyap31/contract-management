@@ -1,5 +1,12 @@
 import frappe
 
+from contract_management.contract_management.constants.workflow import (
+    ApprovalStatus,
+)
+from contract_management.contract_management.services.approval import (
+    ApprovalService,
+)
+
 
 def _get_counterparty_for_user(user=None):
 	"""Return the Counterparty linked to the given portal user (or session user).
@@ -285,6 +292,36 @@ def get_contract_detail(contract_name):
 	):
 		can_sign = latest_signature["status"] in {"Pending", "Sent", "Viewed"}
 
+	# The requesting user's own review decision for the current version.
+	user_approval = None
+	if current_version:
+		rows = frappe.db.get_all(
+			"Approval",
+			filters={
+				"contract_version": current_version["name"],
+				"approver": frappe.session.user,
+			},
+			fields=["status"],
+			limit=1,
+		)
+		if rows:
+			user_approval = rows[0]["status"]
+
+	# The action panel is only shown to actual pending approvers.
+	can_review = bool(
+		can_review and user_approval == ApprovalStatus.PENDING
+	)
+
+	review_state = (
+		"pending"
+		if user_approval == ApprovalStatus.PENDING
+		else "approved"
+		if user_approval == ApprovalStatus.APPROVED
+		else "rejected"
+		if user_approval == ApprovalStatus.REJECTED
+		else None
+	)
+
 	return {
 		"contract": {
 			"name": contract["name"],
@@ -302,6 +339,7 @@ def get_contract_detail(contract_name):
 		"last_activity": timeline[0]["at"] if timeline else None,
 		"can_review": can_review,
 		"can_sign": can_sign,
+		"review_state": review_state,
 	}
 
 
@@ -347,3 +385,111 @@ def download_document(contract_version):
 	)
 	frappe.response["filename"] = file_name
 	frappe.response["filecontent"] = frappe.get_doc("File", file_doc).get_content()
+
+
+@frappe.whitelist()
+def review_contract(contract_name, action, remarks=""):
+	"""Record a counterparty approver's decision on a contract.
+
+	Thin portal wrapper around ApprovalService. Resolves the contract's
+	current version server-side, finds the *session user's* pending
+	Approval for it, persists their remarks and applies the decision.
+
+	Remarks persistence and the ApprovalService call are wrapped in a
+	single DB transaction so a failed decision never leaves partial state.
+
+	Args:
+	    contract_name: Contract being reviewed.
+	    action: "approve" or "reject".
+	    remarks: Optional note stored on the Approval record.
+
+	Returns:
+	    The refreshed `get_contract_detail` payload.
+	"""
+	counterparty = _require_counterparty()
+
+	if action not in {"approve", "reject"}:
+		frappe.throw(
+			frappe._("Action must be 'approve' or 'reject'."),
+			frappe.ValidationError,
+		)
+
+	contract = frappe.db.get_value(
+		"Contract",
+		contract_name,
+		["name", "counterparty"],
+		as_dict=True,
+	)
+	if not contract or contract.counterparty != counterparty.name:
+		frappe.throw(
+			"You don't have access to this contract.", frappe.PermissionError
+		)
+
+	current_rows = frappe.db.get_all(
+		"Contract Version",
+		filters={"contract": contract_name, "is_current": 1},
+		fields=["name"],
+		limit=1,
+	)
+	if not current_rows:
+		current_rows = frappe.db.get_all(
+			"Contract Version",
+			filters={"contract": contract_name},
+			fields=["name"],
+			order_by="creation desc",
+			limit=1,
+		)
+	if not current_rows:
+		frappe.throw("This contract has no version to review.")
+
+	current_version = current_rows[0]["name"]
+
+	approval = frappe.db.get_all(
+		"Approval",
+		filters={
+			"contract_version": current_version,
+			"approver": frappe.session.user,
+			"status": ApprovalStatus.PENDING,
+		},
+		fields=["name"],
+		limit=1,
+	)
+	if not approval:
+		frappe.throw(
+			"You do not have a pending review for this contract.",
+			frappe.PermissionError,
+		)
+
+	approval_name = approval[0]["name"]
+
+	if remarks:
+		frappe.db.set_value("Approval", approval_name, "remarks", remarks.strip())
+
+	# Ownership / `pending` checks ran above as the portal user. The Approval /
+	# Contract Version doctypes are System-Manager-only, so the service must run
+	# elevated (same as WorkflowService.apply_system_action). `frappe.set_user`
+	# rebuilds `session.data` from scratch (a known framework footgun) which,
+	# if left un-restored, gets persisted back into the cache at request end and
+	# poisons the *next* request with `user=None` (403 "User None not found").
+	# Snapshot the live session and restore it exactly after the transition.
+	previous_user = frappe.session.user
+	session_snapshot = frappe.local.session.data.copy()
+	session_sid = frappe.local.session.sid
+	try:
+		frappe.set_user("Administrator")
+		if action == "approve":
+			ApprovalService.approve(approval_name)
+		else:
+			ApprovalService.reject(approval_name)
+	except Exception:
+		frappe.db.rollback()
+		raise
+	finally:
+		frappe.set_user(previous_user)
+		frappe.local.session.data = session_snapshot
+		frappe.local.session.sid = session_sid
+		frappe.local.role_permissions = {}
+		frappe.local.user_perms = None
+		frappe.local.cache = {}
+
+	return get_contract_detail(contract_name)
