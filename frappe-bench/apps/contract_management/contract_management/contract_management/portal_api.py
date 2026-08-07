@@ -270,7 +270,14 @@ def get_contract_detail(contract_name):
 		rows = frappe.db.get_all(
 			"Signature Request",
 			filters={"contract_version": current_version["name"]},
-			fields=["name", "status", "requested_on", "completed_on", "requested_by"],
+			fields=[
+				"name",
+				"status",
+				"requested_on",
+				"completed_on",
+				"requested_by",
+				"signing_url",
+			],
 			order_by="requested_on desc",
 			limit=1,
 		)
@@ -291,6 +298,23 @@ def get_contract_detail(contract_name):
 		and latest_signature
 	):
 		can_sign = latest_signature["status"] in {"Pending", "Sent", "Viewed"}
+
+	signing_url = None
+	if can_sign and latest_signature and latest_signature.get("signing_url"):
+		recipient_email = (counterparty.get("email") or "").strip().lower()
+		matched = None
+		for r in latest_signature.get("recipients", []):
+			if (r.get("email") or "").strip().lower() == recipient_email:
+				matched = r
+				break
+		# Never expose another recipient's URL. Only surface the URL belonging
+		# to this counterparty while their signing turn is still Pending.
+		if matched and matched.get("status") == "Pending":
+			signing_url = latest_signature["signing_url"]
+
+	# A signable request must also resolve to the counterparty's own signing
+	# URL, otherwise the button must not be shown.
+	can_sign = can_sign and bool(signing_url)
 
 	# The requesting user's own review decision for the current version.
 	user_approval = None
@@ -339,6 +363,7 @@ def get_contract_detail(contract_name):
 		"last_activity": timeline[0]["at"] if timeline else None,
 		"can_review": can_review,
 		"can_sign": can_sign,
+		"signing_url": signing_url,
 		"review_state": review_state,
 	}
 

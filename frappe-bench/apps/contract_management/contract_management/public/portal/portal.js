@@ -1,4 +1,4 @@
-const { createApp, reactive, ref, computed, watch } = Vue;
+const { createApp, reactive, ref, computed, watch, onUnmounted } = Vue;
 
 /* ------------------------------------------------------------------
    Store
@@ -527,9 +527,18 @@ const ApprovalCard = {
 
 const SignatureCard = {
 	components: { StatusBadge },
-	props: ["signature"],
-	setup() {
-		return { icons, fmtDateTime, recipientTone };
+	props: {
+		signature: { type: Object, default: null },
+		canSign: { type: Boolean, default: false },
+		signingUrl: { type: String, default: "" },
+	},
+	setup(props) {
+		const startSigning = () => {
+			if (props.signingUrl) {
+				window.open(props.signingUrl, "_blank", "noopener");
+			}
+		};
+		return { icons, fmtDateTime, recipientTone, startSigning };
 	},
 	template: `
 		<section class="detail-card side-card">
@@ -562,6 +571,9 @@ const SignatureCard = {
 						<span class="recipient-status">{{ r.status }}</span>
 					</span>
 				</div>
+				<button class="primary-btn sign-btn" v-if="canSign && signingUrl" @click="startSigning">
+					Sign Contract <span v-html="icons.external"></span>
+				</button>
 			</template>
 			<p class="card-empty" v-else>No signature has been requested for this version.</p>
 		</section>
@@ -629,7 +641,41 @@ const ContractDetailPage = {
 				});
 		};
 
+		// Silent background refresh: keep the current data on screen while the
+		// page regains focus (e.g. returning from the Documenso signing tab).
+		// If the webhook has not finished, the signature stays in its previous
+		// state until get_contract_detail reflects the updated status.
+		const refreshSilently = () => {
+			if (store.route.view !== "detail" || store.route.contract !== props.contractName) {
+				return;
+			}
+			api("get_contract_detail", { contract_name: props.contractName })
+				.then((r) => {
+					if (r.message) {
+						state.data = r.message;
+						state.phase = "ready";
+					}
+				})
+				.catch(() => {
+					/* keep the last known data on a silent refresh failure */
+				});
+		};
+
+		const onVisibility = () => {
+			if (document.visibilityState === "visible" && store.route.view === "detail") {
+				refreshSilently();
+			}
+		};
+		const onFocus = () => refreshSilently();
+		document.addEventListener("visibilitychange", onVisibility);
+		window.addEventListener("focus", onFocus);
+
 		load();
+
+		onUnmounted(() => {
+			document.removeEventListener("visibilitychange", onVisibility);
+			window.removeEventListener("focus", onFocus);
+		});
 
 		return { state, load, goBack, icons };
 	},
@@ -677,7 +723,10 @@ const ContractDetailPage = {
 							:contract-name="state.data.contract.name"
 							:can-review="state.data.can_review"
 							@done="load" />
-						<signature-card :signature="state.data.signature" />
+						<signature-card
+							:signature="state.data.signature"
+							:can-sign="state.data.can_sign"
+							:signing-url="state.data.signing_url" />
 					</aside>
 				</div>
 

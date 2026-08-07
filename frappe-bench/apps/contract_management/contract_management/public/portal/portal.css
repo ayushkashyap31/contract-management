@@ -1222,6 +1222,12 @@
 	gap: 0.4rem;
 }
 
+.sign-btn {
+	margin-top: 1.1rem;
+	width: 100%;
+	justify-content: center;
+}
+
 .recipient-chip {
 	display: inline-flex;
 	align-items: center;
