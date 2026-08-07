@@ -6,13 +6,16 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "contract_and_request_details_section",
   "contract_version",
-  "requested_by",
   "status",
-  "requested_on",
   "column_break_zmev",
+  "requested_by",
+  "requested_on",
+  "completion_details_section",
   "completed_on",
   "envelope_id",
+  "column_break_qssl",
   "signing_url",
   "recipients_section",
   "signature_recipients"
@@ -81,12 +84,26 @@
    "fieldtype": "Table",
    "label": "Signature Recipients",
    "options": "Signature Recipient"
+  },
+  {
+   "fieldname": "contract_and_request_details_section",
+   "fieldtype": "Section Break",
+   "label": "Contract and Request Details"
+  },
+  {
+   "fieldname": "completion_details_section",
+   "fieldtype": "Section Break",
+   "label": "Completion Details"
+  },
+  {
+   "fieldname": "column_break_qssl",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-07-22 16:10:29.724660",
+ "modified": "2026-08-07 14:31:18.466468",
  "modified_by": "Administrator",
  "module": "Contract Management",
  "name": "Signature Request",

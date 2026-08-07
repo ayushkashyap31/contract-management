@@ -6,11 +6,15 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "contract_details_section",
   "contract",
+  "version_details_section",
   "version_number",
-  "status",
   "is_current",
   "document",
+  "column_break_pbbp",
+  "status",
+  "note_section",
   "notes"
  ],
  "fields": [
@@ -56,12 +60,31 @@
    "fieldname": "notes",
    "fieldtype": "Small Text",
    "label": "Notes"
+  },
+  {
+   "fieldname": "contract_details_section",
+   "fieldtype": "Section Break",
+   "label": "Contract Details"
+  },
+  {
+   "fieldname": "version_details_section",
+   "fieldtype": "Section Break",
+   "label": "Version details"
+  },
+  {
+   "fieldname": "column_break_pbbp",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "note_section",
+   "fieldtype": "Section Break",
+   "label": "Note"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-04 12:02:50.291956",
+ "modified": "2026-08-07 14:28:02.309199",
  "modified_by": "Administrator",
  "module": "Contract Management",
  "name": "Contract Version",

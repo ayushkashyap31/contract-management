@@ -9,6 +9,7 @@
  "field_order": [
   "basic_section",
   "counterparty_type",
+  "column_break_avyi",
   "counterparty_name",
   "contact_section",
   "contact_person",
@@ -18,8 +19,9 @@
   "address_section",
   "address",
   "portal_section",
-  "portal_user",
   "portal_enabled",
+  "column_break_xnxw",
+  "portal_user",
   "status_section",
   "status",
   "notes_section",
@@ -100,8 +102,8 @@
    "search_index": 1
   },
   {
-   "fieldname": "portal_enabled",
    "default": "0",
+   "fieldname": "portal_enabled",
    "fieldtype": "Check",
    "label": "Portal Enabled"
   },
@@ -126,12 +128,20 @@
    "fieldname": "notes",
    "fieldtype": "Text Editor",
    "label": "Notes"
+  },
+  {
+   "fieldname": "column_break_avyi",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_xnxw",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-07-22 12:07:01.189086",
+ "modified": "2026-08-07 14:25:01.299292",
  "modified_by": "Administrator",
  "module": "Contract Management",
  "name": "Counterparty",

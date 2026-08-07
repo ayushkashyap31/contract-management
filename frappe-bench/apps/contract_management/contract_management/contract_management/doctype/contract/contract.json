@@ -13,6 +13,7 @@
   "status",
   "dates_section",
   "effective_date",
+  "column_break_elyt",
   "expiration_date",
   "collaborators_section",
   "collaborators",
@@ -88,13 +89,17 @@
    "print_hide": 1,
    "read_only": 1,
    "search_index": 1
+  },
+  {
+   "fieldname": "column_break_elyt",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-08-04 11:56:40.600819",
+ "modified": "2026-08-07 14:26:10.026185",
  "modified_by": "Administrator",
  "module": "Contract Management",
  "name": "Contract",
