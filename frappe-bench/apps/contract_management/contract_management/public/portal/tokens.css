@@ -1,37 +1,67 @@
 /* ------------------------------------------------------------------
    Contract Portal — Shared design tokens
    Single source of truth for both the dashboard and the login page.
+
+   Design language: calm, minimal enterprise SaaS. Soft neutral canvas,
+   refined indigo brand accent, airy spacing, layered elevation.
 ------------------------------------------------------------------- */
 :root {
-	--font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-		"Helvetica Neue", Arial, "Noto Sans", sans-serif,
+	/* Typography -------------------------------------------------- */
+	--font: "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI",
+		Inter, Roboto, "Helvetica Neue", "Noto Sans", Arial, sans-serif,
 		"Apple Color Emoji", "Segoe UI Emoji";
+	--font-numeric: "SF Pro Display", -apple-system, BlinkMacSystemFont,
+		"Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
 
-	--bg: #f8fafc;
+	/* Neutral surface --------------------------------------------- */
+	--canvas: #f5f6f8;
+	--canvas-elevated: #f9fafb;
 	--card: #ffffff;
+	--card-tinted: #f6f7f9;
+	--surface-sunken: #eef0f3;
 	--border: #e7e9ee;
-	--border-strong: #d7dbe3;
+	--border-strong: #d6d9e0;
+	--border-subtle: #f0f1f4;
 
-	--ink: #111827;
-	--ink-soft: #374151;
-	--muted: #6b7280;
-	--faint: #9ca3af;
+	/* Ink ---------------------------------------------------------- */
+	--ink: #0e1116;
+	--ink-soft: #2f3540;
+	--muted: #5a6270;
+	--faint: #98a0ac;
 
+	/* Brand indigo ------------------------------------------------ */
 	--accent: #4f46e5;
 	--accent-strong: #4338ca;
+	--accent-deep: #362fa8;
 	--accent-soft: #eef2ff;
+	--accent-tint: #f5f6ff;
 
-	--radius: 14px;
-	--radius-sm: 10px;
-	--shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
-	--shadow-sm: 0 1px 3px rgba(16, 24, 40, 0.06);
-	--shadow-md: 0 10px 24px -12px rgba(16, 24, 40, 0.16);
-	--shadow-hover: 0 6px 16px -6px rgba(16, 24, 40, 0.12);
+	/* Elevation --------------------------------------------------- */
+	--radius: 16px;
+	--radius-lg: 20px;
+	--radius-md: 14px;
+	--radius-sm: 12px;
+	--radius-xs: 9px;
+	--radius-pill: 999px;
 
-	--ease: cubic-bezier(0.32, 0.72, 0.22, 1);
-	--dur: 160ms;
+	/* Layered, highly tuned soft shadows */
+	--shadow-xs: 0 1px 2px rgba(14, 17, 22, 0.04);
+	--shadow-sm: 0 1px 2px rgba(14, 17, 22, 0.04), 0 2px 8px -2px rgba(14, 17, 22, 0.05);
+	--shadow-md: 0 2px 4px rgba(14, 17, 22, 0.04), 0 14px 32px -14px rgba(14, 17, 22, 0.16);
+	--shadow-lg: 0 4px 8px rgba(14, 17, 22, 0.06), 0 26px 52px -22px rgba(14, 17, 22, 0.22);
+	--shadow-accent: 0 1px 2px rgba(79, 70, 229, 0.2), 0 4px 12px -2px rgba(79, 70, 229, 0.35);
 
-	--ring: 0 0 0 3px rgba(79, 70, 229, 0.24);
+	/* Motion ------------------------------------------------------ */
+	--ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+	--ease-spring: cubic-bezier(0.34, 1.4, 0.42, 1);
+	--dur: 180ms;
+	--dur-slow: 320ms;
+
+	/* Focus ring */
+	--ring: 0 0 0 3px var(--accent-soft), 0 0 0 1px var(--accent);
+
+	/* Brand gradients */
 	--brand-gradient: linear-gradient(135deg, #818cf8, #6366f1);
 	--brand-gradient-deep: linear-gradient(160deg, #6366f1, #4f46e5 55%, #4338ca 100%);
+	--brand-shine: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0));
 }

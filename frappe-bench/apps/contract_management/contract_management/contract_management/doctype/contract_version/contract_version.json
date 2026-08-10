@@ -9,10 +9,11 @@
   "contract_details_section",
   "contract",
   "version_details_section",
-  "version_number",
-  "is_current",
-  "document",
-  "column_break_pbbp",
+   "version_number",
+   "is_current",
+   "document",
+   "executed_document",
+   "column_break_pbbp",
   "status",
   "note_section",
   "notes"
@@ -55,6 +56,13 @@
    "fieldtype": "Attach",
    "label": "Document",
    "reqd": 1
+  },
+  {
+   "description": "Final signed document. Auto-populated when signing completes; read only.",
+   "fieldname": "executed_document",
+   "fieldtype": "Attach",
+   "label": "Executed Document",
+   "read_only": 1
   },
   {
    "fieldname": "notes",

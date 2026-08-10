@@ -4,7 +4,22 @@
 import frappe
 from frappe.tests import IntegrationTestCase
 
-from contract_management.contract_management.portal_api import get_contract_detail
+from contract_management.contract_management.portal_api import (
+    download_document,
+    get_contract_detail,
+)
+
+
+FAKE_SIGNED_PDF = (
+    b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+    b"2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
+    b"3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Contents 4 0 R"
+    b"/Resources<</Font<</F1 5 0 R>>>>/Parent 2 0 R>>endobj\n"
+    b"4 0 obj<</Length 0>>stream\nendstream endobj\n"
+    b"5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\n"
+    b"xref\n0 6\n0000000000 65535 f \n"
+    b"trailer<</Size 6/Root 1 0 R>>\nstartxref\n220\n%%EOF"
+)
 
 
 class IntegrationTestPortalApi(IntegrationTestCase):
@@ -22,7 +37,7 @@ class IntegrationTestPortalApi(IntegrationTestCase):
         user.insert(ignore_if_duplicate=True)
         return user
 
-    def _make_file(self):
+    def _make_file(self, cv_name="", df=None):
         from frappe.utils.file_manager import save_file
 
         pdf = (
@@ -39,8 +54,27 @@ class IntegrationTestPortalApi(IntegrationTestCase):
             fname="contract-test.pdf",
             content=pdf,
             dt="Contract Version",
-            dn="",
+            dn=cv_name,
+            df=df,
             is_private=0,
+        ).file_url
+
+    def _make_executed_file(self, cv_name):
+        """Attach a private signed PDF to a Contract Version's executed_document field.
+
+        Mirrors SignatureService._store_executed_document: the File row is
+        created with is_private=1 and linked to the Contract Version on the
+        `executed_document` field.
+        """
+        from frappe.utils.file_manager import save_file
+
+        return save_file(
+            fname=f"{cv_name}-signed.pdf",
+            content=FAKE_SIGNED_PDF,
+            dt="Contract Version",
+            dn=cv_name,
+            df="executed_document",
+            is_private=1,
         ).file_url
 
     def _make_docs(
@@ -113,6 +147,26 @@ class IntegrationTestPortalApi(IntegrationTestCase):
             "signature": sig,
         }
 
+    def _make_executed_docs(self, user, email):
+        """Create a fully executed contract with a private executed document."""
+        docs = self._make_docs(
+            user,
+            email,
+            contract_version_status="Executed",
+            request_status="Completed",
+            recipient_statuses=[(email, "Signed")],
+        )
+        executed_url = self._make_executed_file(docs["version"].name)
+        frappe.db.set_value(
+            "Contract Version",
+            docs["version"].name,
+            "executed_document",
+            executed_url,
+        )
+        frappe.db.commit()
+        docs["version"] = frappe.get_doc("Contract Version", docs["version"].name)
+        return docs
+
     def _as_user(self, user, fn, *args, **kwargs):
         previous = frappe.session.user
         frappe.set_user(user)
@@ -181,3 +235,173 @@ class IntegrationTestPortalApi(IntegrationTestCase):
 
         with self.assertRaises(frappe.PermissionError):
             self._as_user(user_b.name, get_contract_detail, docs["contract"].name)
+
+    # --- executed document download ------------------------------------
+
+    def test_executed_document_available_to_owner(self):
+        user = self._make_user("portal1@example.com", "Portal One")
+        docs = self._make_executed_docs(user.name, "portal1@example.com")
+
+        frappe.response.clear()
+        self._as_user(
+            user.name,
+            download_document,
+            docs["version"].name,
+            "executed",
+        )
+
+        self.assertEqual(frappe.response["type"], "download")
+        self.assertEqual(frappe.response["display_content_as"], "attachment")
+        self.assertEqual(
+            frappe.response["filename"], f"{docs['version'].name}-signed.pdf"
+        )
+        # get_content() returns str for ASCII PDFs
+        self.assertEqual(frappe.response["filecontent"], FAKE_SIGNED_PDF.decode())
+
+    def test_executed_document_denied_for_another_counterparty(self):
+        user_a = self._make_user("ownera@example.com", "Owner A")
+        user_b = self._make_user("ownerb@example.com", "Owner B")
+        docs = self._make_executed_docs(user_a.name, "ownera@example.com")
+
+        with self.assertRaises(frappe.PermissionError):
+            self._as_user(
+                user_b.name,
+                download_document,
+                docs["version"].name,
+                "executed",
+            )
+
+    def test_executed_document_missing(self):
+        user = self._make_user("portal1@example.com", "Portal One")
+        docs = self._make_docs(
+            user.name,
+            "portal1@example.com",
+            contract_version_status="Executed",
+            request_status="Completed",
+            recipient_statuses=[("portal1@example.com", "Signed")],
+        )
+        frappe.db.set_value(
+            "Contract Version", docs["version"].name, "executed_document", None
+        )
+        frappe.db.commit()
+
+        with self.assertRaises(frappe.ValidationError):
+            self._as_user(
+                user.name,
+                download_document,
+                docs["version"].name,
+                "executed",
+            )
+
+    def test_executed_document_denied_for_nonexecuted_version(self):
+        user = self._make_user("portal2@example.com", "Portal Two")
+        docs = self._make_docs(user.name, "portal2@example.com")
+        # attach a signed file to the field but leave the version un-executed
+        executed_url = self._make_executed_file(docs["version"].name)
+        frappe.db.set_value(
+            "Contract Version",
+            docs["version"].name,
+            "executed_document",
+            executed_url,
+        )
+        frappe.db.commit()
+
+        with self.assertRaises(frappe.ValidationError):
+            self._as_user(
+                user.name,
+                download_document,
+                docs["version"].name,
+                "executed",
+            )
+
+    def test_executed_document_cannot_reach_arbitrary_file(self):
+        """A client must not be able to fetch a file attached to a foreign version."""
+        user_a = self._make_user("ownera@example.com", "Owner A")
+        user_b = self._make_user("ownerb@example.com", "Owner B")
+        docs_b = self._make_executed_docs(user_b.name, "ownerb@example.com")
+
+        # Point user_a's version at user_b's executed file (which is attached
+        # to docs_b's version) — must still be denied.
+        foreign_url = frappe.db.get_value(
+            "Contract Version", docs_b["version"].name, "executed_document"
+        )
+        docs_a = self._make_docs(user_a.name, "ownera@example.com")
+        frappe.db.set_value(
+            "Contract Version", docs_a["version"].name, "executed_document", foreign_url
+        )
+        frappe.db.set_value(
+            "Contract Version", docs_a["version"].name, "status", "Executed"
+        )
+        frappe.db.commit()
+
+        with self.assertRaises(frappe.ValidationError):
+            self._as_user(
+                user_a.name,
+                download_document,
+                docs_a["version"].name,
+                "executed",
+            )
+
+    def test_executed_document_denied_for_guest(self):
+        user = self._make_user("portal4@example.com", "Portal Four")
+        docs = self._make_executed_docs(user.name, "portal4@example.com")
+
+        with self.assertRaises(frappe.PermissionError):
+            self._as_user(
+                "Guest",
+                download_document,
+                docs["version"].name,
+                "executed",
+            )
+
+    def test_executed_document_not_exposed_in_detail_payload(self):
+        user = self._make_user("portal3@example.com", "Portal Three")
+        docs = self._make_executed_docs(user.name, "portal3@example.com")
+
+        result = self._as_user(
+            user.name, get_contract_detail, docs["contract"].name
+        )
+
+        self.assertTrue(result["executed_document"]["available"])
+        payload = str(result)
+        self.assertNotIn("/private/files/", payload)
+        self.assertNotIn("executed_document", str(result["current_version"]))
+
+    def test_executed_document_denied_when_file_is_not_private(self):
+        """Fail-closed: a public (non-private) file must never be served."""
+        user = self._make_user("portal2@example.com", "Portal Two")
+        docs = self._make_docs(user.name, "portal2@example.com")
+
+        public_url = self._make_file(
+            cv_name=docs["version"].name, df="executed_document"
+        )
+        frappe.db.set_value(
+            "Contract Version",
+            docs["version"].name,
+            {"status": "Executed", "executed_document": public_url},
+        )
+        frappe.db.commit()
+
+        with self.assertRaises(frappe.PermissionError):
+            self._as_user(
+                user.name,
+                download_document,
+                docs["version"].name,
+                "executed",
+            )
+
+    def test_original_document_download_still_works(self):
+        user = self._make_user("portal1@example.com", "Portal One")
+        docs = self._make_docs(user.name, "portal1@example.com")
+
+        frappe.response.clear()
+        self._as_user(
+            user.name,
+            download_document,
+            docs["version"].name,
+        )
+
+        self.assertEqual(frappe.response["type"], "download")
+        self.assertEqual(frappe.response["display_content_as"], "inline")
+        self.assertEqual(frappe.response["filecontent"], FAKE_SIGNED_PDF.decode())
+        self.assertNotIn("-signed.pdf", frappe.response["filename"])

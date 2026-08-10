@@ -36,19 +36,20 @@ class DocumensoHttpClient:
             }
         )
 
-    def request(
+    def _send(
         self,
         method: str,
         endpoint: str,
         **kwargs,
-    ) -> dict[str, Any] | list[Any] | None:
+    ):
         """
-        Execute an HTTP request and return the parsed JSON response.
+        Execute an HTTP request and return the raw response after mapping
+        transport, authentication and API errors onto the exception hierarchy.
 
         Raises:
             DocumensoRequestError: If the request cannot be completed.
             DocumensoAuthenticationError: If authentication fails.
-            DocumensoApiError: If the API returns an error or invalid JSON.
+            DocumensoApiError: If the API returns an error response.
         """
         url = urljoin(self.base_url, endpoint)
 
@@ -70,7 +71,6 @@ class DocumensoHttpClient:
                 "Authentication with the Documenso API failed."
             )
 
-        
         if not response.ok:
             try:
                 error = response.json()
@@ -82,6 +82,23 @@ class DocumensoHttpClient:
                 message or f"Documenso API returned HTTP {response.status_code}."
             )
 
+        return response
+
+    def request(
+        self,
+        method: str,
+        endpoint: str,
+        **kwargs,
+    ) -> dict[str, Any] | list[Any] | None:
+        """
+        Execute an HTTP request and return the parsed JSON response.
+
+        Raises:
+            DocumensoRequestError: If the request cannot be completed.
+            DocumensoAuthenticationError: If authentication fails.
+            DocumensoApiError: If the API returns an error or invalid JSON.
+        """
+        response = self._send(method, endpoint, **kwargs)
 
         if not response.content:
             return None
@@ -93,9 +110,38 @@ class DocumensoHttpClient:
                 "Invalid JSON response received from the Documenso API."
             ) from exc
 
+    def request_binary(
+        self,
+        method: str,
+        endpoint: str,
+        **kwargs,
+    ) -> bytes:
+        """
+        Execute an HTTP request and return the raw binary response body.
+
+        Used for endpoints that stream files (e.g. signed PDF downloads).
+
+        Raises:
+            DocumensoRequestError: If the request cannot be completed.
+            DocumensoAuthenticationError: If authentication fails.
+            DocumensoApiError: If the API returns an error or an empty body.
+        """
+        response = self._send(method, endpoint, **kwargs)
+
+        if not response.content:
+            raise DocumensoApiError(
+                "Empty response received from the Documenso API."
+            )
+
+        return response.content
+
     def get(self, endpoint: str, **kwargs) -> dict[str, Any] | list[Any] | None:
         """Send a GET request."""
         return self.request("GET", endpoint, **kwargs)
+
+    def get_binary(self, endpoint: str, **kwargs) -> bytes:
+        """Send a GET request and return the raw binary response body."""
+        return self.request_binary("GET", endpoint, **kwargs)
 
     def post(self, endpoint: str, **kwargs) -> dict[str, Any] | list[Any] | None:
         """Send a POST request."""

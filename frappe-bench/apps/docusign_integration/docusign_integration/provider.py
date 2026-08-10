@@ -52,3 +52,44 @@ class DocumensoProvider:
             "/api/v1/documents",
             params={"page": 1, "perPage": 1},
         )
+
+    def get_envelope(
+        self,
+        envelope_id: str,
+    ) -> dict[str, Any]:
+        """Retrieve a Documenso envelope by ID.
+
+        The envelope contains the document status and the ``envelopeItems``
+        array used to locate the signed item for download.
+
+        Args:
+            envelope_id: The Documenso envelope/document ID.
+
+        Returns:
+            Parsed envelope JSON response.
+        """
+
+        return self.client.get(
+            f"/api/v2/envelope/{envelope_id}",
+        )
+
+    def download_envelope_item(
+        self,
+        envelope_item_id: str,
+        version: str = "signed",
+    ) -> bytes:
+        """Download an envelope item (e.g. the signed PDF).
+
+        Args:
+            envelope_item_id: The envelope item ID to download.
+            version: ``"signed"`` (completed document with signatures) or
+                ``"original"`` (original uploaded document).
+
+        Returns:
+            Raw binary content of the downloaded file.
+        """
+
+        return self.client.get_binary(
+            f"/api/v2/envelope/item/{envelope_item_id}/download",
+            params={"version": version},
+        )

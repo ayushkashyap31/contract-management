@@ -32,6 +32,7 @@ from contract_management.contract_management.services.notification import (
 from contract_management.contract_management.services.workflow import (
     WorkflowService,
 )
+from docusign_integration.exceptions import DocumensoError
 from docusign_integration.provider import DocumensoProvider
 
 logger = frappe.logger(__name__)
@@ -293,21 +294,11 @@ class SignatureService:
         # ------------------------------------------------------------------
         # Step 6 — Apply completion transitions
         # ------------------------------------------------------------------
-    
-        print("========== BEFORE TRANSITIONS ==========", flush=True)
 
-        try:
-            cls._apply_completion_transitions(
-                signature_request=signature_request,
-                contract_version=contract_version,
-            )
-
-            print("========== TRANSITIONS SUCCESS ==========", flush=True)
-
-        except Exception as e:
-            print("========== TRANSITIONS FAILED ==========", flush=True)
-            print(repr(e), flush=True)
-            raise
+        cls._apply_completion_transitions(
+            signature_request=signature_request,
+            contract_version=contract_version,
+        )
 
         logger.info(
             "DOCUMENT_COMPLETED Signature Request completed — "
@@ -376,9 +367,9 @@ class SignatureService:
     ) -> None:
         """Apply workflow transitions to complete a signature lifecycle.
 
-        Validates the Contract Version can transition to ``Executed``
-        using the canonical workflow rules, then applies the status
-        changes to both documents and persists them.
+        Stores the signed document first, then validates the Contract Version
+        can transition to ``Executed`` using the canonical workflow rules and
+        applies the status changes to both documents and persists them.
 
         Shared by the manual completion path (``complete_signature_request``)
         and the webhook path (``process_document_completed``) to guarantee
@@ -389,27 +380,156 @@ class SignatureService:
             contract_version: The Contract Version to execute.
 
         Raises:
+            DocumensoError: If the signed document cannot be retrieved.
             frappe.ValidationError: If the transition is not permitted
                 by the workflow rules.
         """
 
-        if not WorkflowService.can_transition(
-            current_status=contract_version.status,
-            new_status=VersionStatus.EXECUTED,
-            transition_map=VERSION_TRANSITIONS,
-        ):
-            frappe.throw(
-                _("Contract Version cannot be executed in its current state."),
-                frappe.ValidationError,
+        cls._store_executed_document(
+            signature_request=signature_request,
+            contract_version=contract_version,
+        )
+
+        # ``apply_workflow`` reloads the document from the database before
+        # applying the transition, so persist the executed document reference
+        # explicitly to guarantee it survives the reload and is saved with the
+        # status change.
+        if contract_version.executed_document:
+            frappe.db.set_value(
+                "Contract Version",
+                contract_version.name,
+                "executed_document",
+                contract_version.executed_document,
             )
 
-        WorkflowService.apply_system_action(
-            contract_version,
-            "Complete Signing",
-        )
+        if contract_version.status == VersionStatus.EXECUTED:
+            # Already executed (e.g. the transition was applied from the desk).
+            # Persist the executed document field without re-transitioning.
+            contract_version.save(ignore_permissions=True)
+        else:
+            if not WorkflowService.can_transition(
+                current_status=contract_version.status,
+                new_status=VersionStatus.EXECUTED,
+                transition_map=VERSION_TRANSITIONS,
+            ):
+                frappe.throw(
+                    _("Contract Version cannot be executed in its current state."),
+                    frappe.ValidationError,
+                )
+
+            WorkflowService.apply_system_action(
+                contract_version,
+                "Complete Signing",
+            )
 
         signature_request.status = SignatureRequestStatus.COMPLETED
         signature_request.save(ignore_permissions=True)
+
+    @classmethod
+    def _store_executed_document(
+        cls,
+        signature_request: Document,
+        contract_version: Document,
+    ) -> None:
+        """Download and store the completed envelope's signed PDF.
+
+        Retrieves the Documenso envelope for the Signature Request, resolves
+        its first envelope item, downloads the ``signed`` version and persists
+        it as a private Frappe ``File`` attached to the Contract Version
+        ``executed_document`` field.
+
+        The original ``document`` field is never touched.
+
+        Idempotent: if ``executed_document`` is already set the download is
+        skipped. Any failure raises ``DocumensoError`` so the surrounding
+        webhook transaction rolls back and can be retried before the Signature
+        Request is ever marked ``Completed``.
+
+        Args:
+            signature_request: The completed (or completing) Signature Request.
+            contract_version: The Contract Version receiving the signed PDF.
+
+        Raises:
+            DocumensoError: If the envelope cannot be retrieved or the signed
+                document cannot be downloaded or is not a valid PDF.
+        """
+
+        if contract_version.executed_document:
+            logger.info(
+                "Executed document already stored for Contract Version %s — "
+                "skipping download",
+                contract_version.name,
+            )
+            return
+
+        if not signature_request.envelope_id:
+            raise DocumensoError(
+                "Cannot retrieve the signed document: Signature Request "
+                "{0} has no envelope ID.".format(signature_request.name)
+            )
+
+        provider = DocumensoProvider()
+
+        envelope = provider.get_envelope(signature_request.envelope_id)
+
+        if envelope.get("status") != "COMPLETED":
+            raise DocumensoError(
+                "Cannot download the signed document for envelope {0}: "
+                "status is {1}, expected COMPLETED.".format(
+                    signature_request.envelope_id,
+                    envelope.get("status"),
+                )
+            )
+
+        items = envelope.get("envelopeItems") or []
+
+        if not items:
+            raise DocumensoError(
+                "Cannot download the signed document for envelope {0}: "
+                "no envelope items found.".format(
+                    signature_request.envelope_id,
+                )
+            )
+
+        item_id = items[0].get("id")
+
+        if not item_id:
+            raise DocumensoError(
+                "Cannot download the signed document for envelope {0}: "
+                "envelope item has no ID.".format(
+                    signature_request.envelope_id,
+                )
+            )
+
+        pdf_content = provider.download_envelope_item(
+            str(item_id),
+            version="signed",
+        )
+
+        if not pdf_content or not pdf_content.startswith(b"%PDF"):
+            raise DocumensoError(
+                "Downloaded signed document for envelope {0} is not a valid "
+                "PDF.".format(signature_request.envelope_id)
+            )
+
+        from frappe.utils.file_manager import save_file
+
+        file_doc = save_file(
+            fname=f"{contract_version.name}-signed.pdf",
+            content=pdf_content,
+            dt="Contract Version",
+            dn=contract_version.name,
+            df="executed_document",
+            is_private=1,
+        )
+
+        contract_version.executed_document = file_doc.file_url
+
+        logger.info(
+            "Executed document stored for Contract Version %s — %s",
+            contract_version.name,
+            file_doc.file_url,
+        )
 
     @classmethod
     def complete_signature_request(
@@ -862,14 +982,9 @@ class SignatureService:
         """
 
         recipient.status = SignatureRecipientStatus.SIGNED
-        
 
         if signed_on:
             utc_dt = get_datetime(signed_on)
-
-            print("SIGNED_ON TYPE:", type(utc_dt), flush=True)
-            print("SIGNED_ON VALUE:", repr(utc_dt), flush=True)
-            
             local_dt = convert_utc_to_system_timezone(utc_dt)
             recipient.signed_on = get_datetime_str(local_dt)
         else:

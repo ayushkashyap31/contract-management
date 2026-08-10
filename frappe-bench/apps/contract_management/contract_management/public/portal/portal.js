@@ -64,6 +64,7 @@ const icons = {
 	external: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`,
 	clock: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
 	users: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+	download: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
 };
 
 function fmtDate(d) {
@@ -186,7 +187,7 @@ const StatusBadge = {
 const StatCard = {
 	props: ["label", "count", "helper", "tone", "icon"],
 	template: `
-		<div class="stat-card">
+		<div class="stat-card" :class="tone">
 			<div class="stat-top">
 				<span class="stat-icon" :class="tone" v-html="icon"></span>
 				<span class="stat-label">{{ label }}</span>
@@ -298,6 +299,7 @@ const DashboardPage = {
 	template: `
 		<div>
 			<section class="greeting">
+				<span class="greeting-eyebrow">Counterparty Portal</span>
 				<h1 class="greeting-title">Welcome back{{ greetingName }}.</h1>
 				<p class="greeting-sub">Here's an overview of your contracts.</p>
 			</section>
@@ -405,17 +407,24 @@ const OverviewCard = {
 };
 
 const DocumentCard = {
-	props: ["version"],
+	props: {
+		version: { type: Object, default: null },
+		executedAvailable: { type: Boolean, default: false },
+	},
 	setup(props) {
 		const fileName = computed(() => {
-			const doc = props.version.document;
+			const doc = props.version && props.version.document;
 			return doc ? String(doc).split("/").pop() : "";
 		});
 		const docUrl = computed(
 			() =>
-				`/api/method/contract_management.contract_management.portal_api.download_document?contract_version=${encodeURIComponent(props.version.name)}`
+				`/api/method/contract_management.contract_management.portal_api.download_document?contract_version=${encodeURIComponent(props.version && props.version.name)}`
 		);
-		return { fileName, docUrl, icons };
+		const signedUrl = computed(
+			() =>
+				`/api/method/contract_management.contract_management.portal_api.download_document?contract_version=${encodeURIComponent(props.version && props.version.name)}&kind=executed`
+		);
+		return { fileName, docUrl, signedUrl, icons };
 	},
 	template: `
 		<section class="detail-card document-card">
@@ -433,6 +442,20 @@ const DocumentCard = {
 			<div class="document-actions">
 				<a class="primary-btn" v-if="version.document" :href="docUrl" target="_blank" rel="noopener">
 					View document <span v-html="icons.external"></span>
+				</a>
+			</div>
+		</section>
+
+		<section class="detail-card document-card signed-document-card" v-if="executedAvailable">
+			<div class="document-visual signed-document-visual" v-html="icons.check"></div>
+			<div class="document-body">
+				<span class="document-eyebrow">Signed Contract</span>
+				<h3 class="detail-card-title">Final executed agreement</h3>
+				<p class="document-sub">This is the signed copy of the agreement. Download it for your records.</p>
+			</div>
+			<div class="document-actions">
+				<a class="primary-btn signed-download-btn" :href="signedUrl" target="_blank" rel="noopener">
+					Download signed contract <span v-html="icons.download"></span>
 				</a>
 			</div>
 		</section>
@@ -715,7 +738,9 @@ const ContractDetailPage = {
 				<div class="detail-columns">
 					<div class="detail-main">
 						<overview-card :data="state.data" />
-						<document-card :version="state.data.current_version" />
+						<document-card
+							:version="state.data.current_version"
+							:executed-available="!!(state.data.executed_document && state.data.executed_document.available)" />
 					</div>
 					<aside class="detail-aside">
 						<approval-card

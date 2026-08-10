@@ -147,7 +147,7 @@ def get_contract_detail(contract_name):
 	versions = frappe.db.get_all(
 		"Contract Version",
 		filters={"contract": contract_name},
-		fields=["name", "version_number", "status", "document", "creation"],
+		fields=["name", "version_number", "status", "document", "executed_document", "creation"],
 		order_by="version_number asc",
 	)
 	version_num = {v["name"]: v["version_number"] for v in versions}
@@ -156,7 +156,7 @@ def get_contract_detail(contract_name):
 	current_rows = frappe.db.get_all(
 		"Contract Version",
 		filters={"contract": contract_name, "is_current": 1},
-		fields=["name", "version_number", "status", "document", "creation"],
+		fields=["name", "version_number", "status", "document", "executed_document", "creation"],
 		limit=1,
 	)
 	if current_rows:
@@ -346,6 +346,17 @@ def get_contract_detail(contract_name):
 		else None
 	)
 
+	# Whether the final signed document is available for download. Only the
+	# boolean is exposed — never the private file URL itself. The private
+	# URL is stripped from `current_version` before it leaves the API.
+	executed_available = bool(
+		current_version
+		and current_version.get("status") == "Executed"
+		and current_version.get("executed_document")
+	)
+	if current_version:
+		current_version.pop("executed_document", None)
+
 	return {
 		"contract": {
 			"name": contract["name"],
@@ -365,28 +376,41 @@ def get_contract_detail(contract_name):
 		"can_sign": can_sign,
 		"signing_url": signing_url,
 		"review_state": review_state,
+		"executed_document": {"available": executed_available},
 	}
 
 
-@frappe.whitelist()
-def download_document(contract_version):
-	"""Stream the uploaded document for a Contract Version to the portal user.
+def _stream_file(file_doc, display_content_as="inline", filename=None):
+	"""Stream a File's bytes to the portal user using Frappe's download response.
 
-	The document is attached to `Contract Version`, whose file permission is
-	gated on the (System-Manager-only) doctype read rights, so a direct
-	/private/files/ URL 403s for portal users. This whitelisted endpoint
-	re-enforces counterparty ownership and streams the bytes instead.
+	Only ever reached after ownership and file-attachment checks have passed;
+	callers are responsible for authorization.
 	"""
-	counterparty = _require_counterparty()
+	file_doc = frappe.get_doc("File", file_doc)
+	filename = filename or file_doc.file_name or "document.pdf"
 
+	frappe.response["type"] = "download"
+	frappe.response["display_content_as"] = display_content_as
+	frappe.response["filename"] = filename
+	frappe.response["filecontent"] = file_doc.get_content()
+
+
+def _resolve_owned_version(counterparty, contract_version):
+	"""Resolve a Contract Version and enforce counterparty ownership.
+
+	Shared by both document download kinds so the authorization logic lives
+	in exactly one place. Returns the version dict or raises.
+	"""
 	version = frappe.db.get_value(
 		"Contract Version",
 		contract_version,
-		["name", "contract", "document"],
+		["name", "contract", "status", "document", "executed_document"],
 		as_dict=True,
 	)
-	if not version or not version.document:
-		frappe.throw("No document is available for this version.")
+	if not version:
+		frappe.throw(
+			"This contract version could not be found.", frappe.PermissionError
+		)
 
 	contract_counterparty = frappe.db.get_value(
 		"Contract", version.contract, "counterparty"
@@ -396,20 +420,93 @@ def download_document(contract_version):
 			"You don't have access to this document.", frappe.PermissionError
 		)
 
+	return version
+
+
+def _resolve_attached_file(file_url, version, field="document"):
+	"""Resolve a File that must be attached to the given version/field.
+
+	Fails closed: the File must exist and must be attached to exactly this
+	Contract Version on the given field. This guarantees the caller can only
+	reach a file the system itself attached to their own version, never an
+	arbitrary path or another counterparty's file.
+	"""
 	file_doc = frappe.db.get_value(
-		"File", {"file_url": version.document}, "name"
+		"File",
+		{
+			"file_url": file_url,
+			"attached_to_doctype": "Contract Version",
+			"attached_to_name": version["name"],
+			"attached_to_field": field,
+		},
+		["name", "file_name", "is_private"],
+		as_dict=True,
 	)
 	if not file_doc:
 		frappe.throw("The document file could not be found.")
 
-	file_name = frappe.db.get_value("File", file_doc, "file_name") or version.document.rsplit("/", 1)[-1]
+	return file_doc
 
-	frappe.response["type"] = "download"
-	frappe.response["display_content_as"] = (
-		"inline" if file_name.lower().endswith(".pdf") else "attachment"
+
+@frappe.whitelist()
+def download_document(contract_version, kind="original"):
+	"""Stream a Contract Version's document to the portal user.
+
+	The documents are attached to `Contract Version`, whose file permission is
+	gated on the (System-Manager-only) doctype read rights, so a direct
+	/private/files/ URL 403s for portal users. This whitelisted endpoint
+	re-enforces counterparty ownership and streams the bytes instead.
+
+	kind="original"  → the working/uploaded document (existing behavior).
+	kind="executed"  → the final signed document (executed_document).
+
+	The client only ever supplies a Contract Version identity; a raw file
+	path/URL is never accepted.
+	"""
+	counterparty = _require_counterparty()
+	version = _resolve_owned_version(counterparty, contract_version)
+
+	if kind == "executed":
+		if not version["executed_document"]:
+			frappe.throw(
+				"No signed document is available for this version.",
+				frappe.ValidationError,
+			)
+		if version["status"] != "Executed":
+			frappe.throw(
+				"The signed document is not available until the contract is executed.",
+				frappe.ValidationError,
+			)
+
+		file_doc = _resolve_attached_file(
+			version["executed_document"], version, field="executed_document"
+		)
+		if file_doc.get("is_private") != 1:
+			frappe.throw(
+				"The signed document file could not be found.",
+				frappe.PermissionError,
+			)
+		_stream_file(
+			file_doc["name"],
+			display_content_as="attachment",
+			filename=f"{version['name']}-signed.pdf",
+		)
+		return
+
+	# kind == "original" (default) — existing behavior.
+	if not version["document"]:
+		frappe.throw("No document is available for this version.")
+
+	file_doc = _resolve_attached_file(version["document"], version)
+	file_name = file_doc["file_name"] or version["document"].rsplit("/", 1)[-1]
+
+	_stream_file(
+		file_doc["name"],
+		display_content_as=(
+			"inline" if file_name.lower().endswith(".pdf") else "attachment"
+		),
+		filename=file_name,
 	)
-	frappe.response["filename"] = file_name
-	frappe.response["filecontent"] = frappe.get_doc("File", file_doc).get_content()
 
 
 @frappe.whitelist()
