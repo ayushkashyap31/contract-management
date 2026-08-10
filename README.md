@@ -10,6 +10,19 @@ self-service — on a single platform with a complete audit trail.
 
 ---
 
+
+## Project Highlights
+
+- Enterprise Contract Lifecycle Management system built on Frappe Framework v16
+- Service-oriented backend architecture
+- Complete contract approval workflow
+- Documenso digital signature integration
+- Secure Counterparty Portal with role-based access
+- Executive Dashboard and business reports
+- Automated webhook synchronization
+- Comprehensive project documentation with architecture and workflow diagrams
+---
+
 ## Project Overview
 
 Organizations manage contracts across email threads and shared folders, which
