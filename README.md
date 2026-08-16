@@ -8,6 +8,14 @@ The system covers the full contract journey — drafting, versioning, internal
 approval, electronic signing, execution, expiry tracking and counterparty
 self-service — on a single platform with a complete audit trail.
 
+## 🎥 Demo
+
+Watch the complete end-to-end CLM workflow:
+
+**Contract Creation → Versioning → Review → Approval → Signature Request → Documenso Signing → Counterparty Portal → Contract Execution**
+
+[▶️ Watch the CLM Demo](demo/Final_documenso_demo.mp4)
+<video src="./demo/Final_documenso_demo.mp4" controls width="100%"></video>
 ---
 
 
